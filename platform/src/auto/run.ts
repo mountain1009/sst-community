@@ -18,9 +18,34 @@ export async function run(program: automation.PulumiFn) {
 
   Function.reset();
   Link.reset();
-  const outputs = (await program()) || {};
+  let outputs: Record<string, any>;
+  try {
+    outputs = (await program()) || {};
+  } catch (error) {
+    explainUndefined(error);
+  }
   outputs._protect = $app.protect;
   return outputs;
+}
+
+/**
+ * A provider the app hasn't added is a name that isn't defined, often in a
+ * package that uses it. Say how to add it.
+ * @internal
+ */
+export function explainUndefined(error: unknown): never {
+  const name =
+    error instanceof ReferenceError &&
+    error.message.match(/^(\w+) is not defined$/)?.[1];
+  if (name) {
+    const hint = `If "${name}" is a provider, add it to your app with "sst add ${name}".`;
+    error.stack = error.stack?.replace(
+      error.message,
+      `${error.message}. ${hint}`,
+    );
+    error.message = `${error.message}. ${hint}`;
+  }
+  throw error;
 }
 
 function addTransformationToRetainResourcesOnDelete() {
