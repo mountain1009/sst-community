@@ -476,3 +476,168 @@ Here `unclaimed` are the resources a deploy would remove. And `changed` are the 
 A function is also in `changed` when what its code is built from is different: its handler, its runtime, or its links. A function's links are written into its code, so they aren't in the inputs of anything it creates.
 
 And `unordered` are the resources that were removed in order before, and aren't now. Resources are removed in the reverse of the order they depend on each other. So if a database no longer depends on its subnet group, the two are removed in any order, and AWS refuses to delete a subnet group that's still in use.
+
+---
+
+## Share it
+
+A component can be published as a package and used in any app on version 5.
+
+In a package, import what the component uses: the components from `sst/components`, and each provider from its package. When an app runs the component, both are the app's own, so the package uses the same SST and the same providers as the app. `sst/components` is what the `sst` global is.
+
+```ts title="src/index.ts"
+import { component, type ComponentArgs, type LinkDefinition } from "sst/components";
+import type { ComponentResourceOptions } from "@pulumi/pulumi";
+import * as aws from "@pulumi/aws";
+import * as cloudflare from "@pulumi/cloudflare";
+
+const parts = {
+  identity: aws.ses.DomainIdentity,
+  verification: cloudflare.DnsRecord,
+};
+
+export interface EmailDomainArgs extends ComponentArgs<typeof parts> {
+  domain: string;
+  zoneId: string;
+}
+
+export class EmailDomain extends component("acme:EmailDomain", parts) {
+  constructor(name: string, args: EmailDomainArgs, opts?: ComponentResourceOptions) {
+    super(name, args, opts);
+
+    const identity = this.part("identity", { domain: args.domain });
+    this.part("verification", {
+      zoneId: args.zoneId,
+      name: `_amazonses.${args.domain}`,
+      type: "TXT",
+      content: identity.verificationToken,
+      ttl: 60,
+    });
+  }
+
+  link(): LinkDefinition {
+    return { properties: { domain: this.nodes.identity.domain } };
+  }
+}
+```
+
+---
+
+#### Set it up
+
+The package's repo is an app too, with the providers the component uses.
+
+```ts title="sst.config.ts"
+/// <reference path="./.sst/platform/config.d.ts" />
+export default $config({
+  app() {
+    return { name: "email-domain", home: "aws", providers: { cloudflare: "6.15.0" } };
+  },
+  async run() {},
+});
+```
+
+Run `sst install`. It installs SST and the providers in `.sst/platform`, and writes `.sst/tsconfig.json`, which tells TypeScript where they are. Extend it, and `tsc` compiles the component to JavaScript and a `.d.ts`.
+
+```json title="tsconfig.json"
+{
+  "extends": "./.sst/tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"]
+}
+```
+
+Say which versions of SST and which providers the component works with, as peer dependencies.
+
+```json title="package.json"
+{
+  "name": "@acme/email-domain",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "peerDependencies": {
+    "sst": ">=5.0.0-0",
+    "@pulumi/aws": "^7",
+    "@pulumi/cloudflare": "^6"
+  },
+  "peerDependenciesMeta": {
+    "@pulumi/aws": { "optional": true },
+    "@pulumi/cloudflare": { "optional": true }
+  }
+}
+```
+
+An app that installs the package gets its components checked against these when it deploys. If the app doesn't have one of the providers, the deploy stops and says to add it with `sst add`. The same happens if the app's SST or one of its providers is a version outside the range. The providers are optional so that a package manager doesn't install another copy of each in the app, which has its own. `>=5.0.0-0` includes the prereleases of version 5.
+
+---
+
+#### Test the package
+
+Test the component with `mock()`, as in [Test it](#test-it). Point vitest at the app's SST and providers, so a test uses the same ones as a deploy.
+
+```ts title="vitest.config.ts"
+import { defineConfig } from "vitest/config";
+import { alias } from "./.sst/platform/src/testing/vitest";
+
+export default defineConfig({ resolve: { alias } });
+```
+
+```ts title="test/email-domain.test.ts"
+import { expect, test } from "vitest";
+import { mock } from "sst/testing";
+
+const app = await mock();
+const { EmailDomain } = await import("../src/index");
+
+test("verifies the domain in Cloudflare", async () => {
+  app.reset();
+  new EmailDomain("Mail", { domain: "example.com", zoneId: "Z1" });
+  await app.settle();
+
+  const record = app.resources.find((r) => r.type === "cloudflare:index/dnsRecord:DnsRecord");
+  expect(record?.inputs.name).toBe("_amazonses.example.com");
+});
+```
+
+---
+
+#### Use it
+
+In an app, install the package, add the providers it needs, and import it in `run()`.
+
+```ts title="sst.config.ts"
+const { EmailDomain } = await import("@acme/email-domain");
+
+const email = new EmailDomain("Mail", {
+  domain: "example.com",
+  zoneId: "023e105f4ecef8ad9ca31a8372d0c353",
+  transform: { verification: { ttl: 300 } },
+});
+```
+
+For TypeScript to read the package's types, the app's `tsconfig.json` extends `.sst/tsconfig.json` too.
+
+```json title="tsconfig.json" {2}
+{
+  "extends": "./.sst/tsconfig.json",
+  "compilerOptions": {
+    // ...
+  }
+}
+```
+
+:::note
+`paths` in your own `tsconfig.json` replace the ones it extends. If you have some, add the entries from `.sst/tsconfig.json` to yours. `sst install` changes them when you add a provider.
+:::
+
+A component can also be written with the `sst` and provider globals, as in your app, and published as TypeScript. Then the app needs no change to its `tsconfig.json`, but nothing in the package says what it depends on.

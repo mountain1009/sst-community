@@ -204,6 +204,17 @@ the component reads its args.
   is a new resource. To change the key and keep what's deployed, declare the part with
   the name it had: `files: sst.named(aws.s3.Bucket, "Bucket")`. Or give the resource its
   new name and say where it was: `sst.takeover(Uploads, { moved: { files: "bucket" } })`.
+- **Sharing it as a package.** A package imports `component` and the rest from
+  `sst/components`, and each provider from its package. The CLI resolves
+  `sst/components` to the app's own platform, so it is what the `sst` global is.
+  `.sst/tsconfig.json`, which `sst install` writes, does the same for TypeScript. The
+  package's peer dependencies say which SST and which providers it needs, and a deploy
+  checks them. "Share it" on the docs page has the setup.
+- **`sst/components` is a public API.** What `index.ts` exports is what packages build
+  on. Adding to it is fine. Removing an export or changing what one accepts breaks them,
+  so it waits for a major version. `component()` returns a named type
+  (`ComponentClass`) so that a package's `.d.ts` can name it; keep it named.
+  `declarations.test.ts` compiles a package both ways.
 
 ---
 

@@ -8,6 +8,7 @@ Where the fork's larger pieces of work are planned and tracked. `CLAUDE.md` hold
 | [v5-progress.md](v5-progress.md) | The log: what landed on which day, in which commit, and what was learned on the way. |
 | [v5-port-notes.md](v5-port-notes.md) | One section per ported component: its parts, what's plain, what changes on a switch, and what's deliberately different from version 4. |
 | [v5-aws-test-2026-10-01.md](v5-aws-test-2026-10-01.md) | The first deploy of the v5 components to a real AWS account: what ran, what it found, what's still untested. |
+| [v5-sharing.md](v5-sharing.md) | Sharing components as npm packages: the design, what's been checked, what it takes, and the open questions. |
 
 The rules for writing a v5 component are not here. They're in [`platform/src/components/README.md`](../../platform/src/components/README.md), which ships with the CLI.
 
