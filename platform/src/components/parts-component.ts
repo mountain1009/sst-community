@@ -98,7 +98,7 @@ export interface LinkDefinition {
 export function component<P extends Parts>(
   type: string,
   parts: P | (() => P),
-) {
+): ComponentClass<P> {
   return class extends PartsComponent<P> {
     /** @internal */
     static readonly __pulumiType = type;
@@ -115,6 +115,24 @@ export function component<P extends Parts>(
       );
     }
   };
+}
+
+/**
+ * The class `component()` returns. It has a name so that a component in a
+ * published package can be compiled to a `.d.ts`: TypeScript can't write out
+ * an unnamed class that has private members.
+ */
+export interface ComponentClass<P extends Parts>
+  extends Omit<typeof PartsComponent, "prototype"> {
+  new (
+    name: string,
+    args?: Inputs,
+    opts?: ComponentResourceOptions,
+  ): PartsComponent<P>;
+  /** @internal */
+  readonly __pulumiType: string;
+  /** @internal Only carries the type of the parts. */
+  readonly __parts?: P;
 }
 
 /**
@@ -427,7 +445,7 @@ export class PartsComponent<P extends Parts> extends Component {
     return {
       name: this.nameOf(key, id),
       transform: this.transformOf(key, id),
-      opts: { parent: this, aliases: this.aliasesOf(key, id) },
+      opts: { parent: this as Component, aliases: this.aliasesOf(key, id) },
       /** What the user passed in `existing` for the part, as they passed it. */
       existing: at(this.partExisting, key, id) as unknown,
       /**
