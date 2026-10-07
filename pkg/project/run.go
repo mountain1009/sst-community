@@ -224,6 +224,10 @@ func (p *Project) Run(ctx context.Context, input *StackInput) error {
 	})
 	log.Info("tracked files")
 
+	if err := checkPackages(meta, p.version, p.lock); err != nil {
+		return util.NewReadableError(nil, err.Error())
+	}
+
 	secrets := map[string]string{}
 	fallback := map[string]string{}
 
