@@ -18,10 +18,24 @@ type EvalOptions struct {
 	Outfile string
 	Code    string
 	Env     []string
-	Globals string
+	Globals []Global
 	Banner  string
 	Inject  []string
 	Define  map[string]string
+	// The file each of the platform's modules is, like `sst/components`, in a
+	// build that runs the app.
+	Platform map[string]string
+}
+
+// The modules an app or a component package imports from the app's own
+// platform, rather than from its node_modules
+var PlatformModules = []string{"sst/components"}
+
+// A module that every file of the app, and every package it imports, can use
+// by name without importing it, like `sst` and `aws` in `sst.config.ts`.
+type Global struct {
+	Name   string
+	Module string
 }
 
 type PackageJson struct {
@@ -33,15 +47,8 @@ type PackageJson struct {
 
 type Metafile struct {
 	Inputs map[string]struct {
-		Bytes   int `json:"bytes"`
-		Imports []struct {
-			Path        string `json:"path"`
-			Kind        string `json:"kind"`
-			External    bool   `json:"external,omitempty"`
-			Original    string `json:"original,omitempty"`
-			Namespace   string `json:"namespace,omitempty"`
-			SideEffects bool   `json:"sideEffects,omitempty"`
-		} `json:"imports"`
+		Bytes   int              `json:"bytes"`
+		Imports []MetafileImport `json:"imports"`
 	} `json:"inputs"`
 	Outputs map[string]struct {
 		Bytes  int `json:"bytes"`
@@ -53,12 +60,39 @@ type Metafile struct {
 	} `json:"outputs"`
 }
 
+type MetafileImport struct {
+	Path        string `json:"path"`
+	Kind        string `json:"kind"`
+	External    bool   `json:"external,omitempty"`
+	Original    string `json:"original,omitempty"`
+	Namespace   string `json:"namespace,omitempty"`
+	SideEffects bool   `json:"sideEffects,omitempty"`
+}
+
 func Build(input EvalOptions) (esbuild.BuildResult, error) {
 	outfile := input.Outfile
 	if outfile == "" {
 		outfile = filepath.Join(input.Dir, ".sst", "platform", fmt.Sprintf("sst.config.%v.mjs", time.Now().UnixMilli()))
 	}
 	slog.Info("esbuild building", "out", outfile)
+	// A build with globals runs the app. The one without only reads `app()`,
+	// and runs before the platform and the providers are installed.
+	runsApp := len(input.Globals) > 0
+	// Each global is imported under a name of its own at the top of every
+	// file, and `define` points the global's name at it. `define` only
+	// replaces a name the file doesn't declare, so a file that imports
+	// `@pulumi/aws` as `aws` itself keeps its own.
+	imports := []string{}
+	define := map[string]string{}
+	for key, value := range input.Define {
+		define[key] = value
+	}
+	for _, global := range input.Globals {
+		local := "__sst_global_" + global.Name
+		imports = append(imports, fmt.Sprintf("import * as %s from %q;", local, global.Module))
+		define[global.Name] = local
+	}
+	globals := strings.Join(imports, "\n")
 	var err error
 	result := esbuild.Build(esbuild.BuildOptions{
 		Banner: map[string]string{
@@ -88,7 +122,7 @@ const __dirname = topLevelFileUrlToPath(new topLevelURL(".", import.meta.url))
 				Name: "DisallowImports",
 				Setup: func(build esbuild.PluginBuild) {
 					build.OnResolve(esbuild.OnResolveOptions{Filter: ".*"}, func(args esbuild.OnResolveArgs) (esbuild.OnResolveResult, error) {
-						if input.Globals == "" && filepath.Base(args.Importer) == "sst.config.ts" && args.Kind == esbuild.ResolveJSImportStatement {
+						if !runsApp && filepath.Base(args.Importer) == "sst.config.ts" && args.Kind == esbuild.ResolveJSImportStatement {
 							err = ErrTopLevelImport
 							return esbuild.OnResolveResult{}, ErrTopLevelImport
 						}
@@ -97,9 +131,58 @@ const __dirname = topLevelFileUrlToPath(new topLevelURL(".", import.meta.url))
 				},
 			},
 			{
+				// `sst/components` is the same file the `sst` global is, so a
+				// package that imports it shares the app's components.
+				Name: "PlatformModules",
+				Setup: func(build esbuild.PluginBuild) {
+					filter := "^(" + strings.Join(PlatformModules, "|") + ")$"
+					build.OnResolve(esbuild.OnResolveOptions{Filter: filter}, func(args esbuild.OnResolveArgs) (esbuild.OnResolveResult, error) {
+						if path, ok := input.Platform[args.Path]; ok && runsApp {
+							// Resolved as any import is, symlinks included, so the
+							// platform's own imports of the same file match it
+							resolved := build.Resolve(path, esbuild.ResolveOptions{
+								Kind:       args.Kind,
+								ResolveDir: filepath.Dir(path),
+							})
+							if len(resolved.Errors) > 0 {
+								return esbuild.OnResolveResult{Errors: resolved.Errors}, nil
+							}
+							return esbuild.OnResolveResult{Path: resolved.Path}, nil
+						}
+						return esbuild.OnResolveResult{Path: args.Path, Namespace: "not-loaded"}, nil
+					})
+				},
+			},
+			{
+				// When only `app()` is read, the code `run()` imports is
+				// bundled but not run. esbuild moves its imports of external
+				// modules to the top of the bundle, where they'd be loaded
+				// before the platform and the providers are installed. So the
+				// platform's and the providers' modules are left out.
+				Name: "NotLoaded",
+				Setup: func(build esbuild.PluginBuild) {
+					build.OnResolve(esbuild.OnResolveOptions{Filter: `^(@pulumi|@pulumiverse|@sst-provider)/`}, func(args esbuild.OnResolveArgs) (esbuild.OnResolveResult, error) {
+						if runsApp || filepath.Base(args.Importer) == "sst.config.ts" {
+							return esbuild.OnResolveResult{}, nil
+						}
+						return esbuild.OnResolveResult{Path: args.Path, Namespace: "not-loaded"}, nil
+					})
+					build.OnLoad(esbuild.OnLoadOptions{Filter: ".*", Namespace: "not-loaded"}, func(args esbuild.OnLoadArgs) (esbuild.OnLoadResult, error) {
+						contents := fmt.Sprintf(
+							"module.exports = new Proxy({}, { get(_, key) { if (key === \"__esModule\" || typeof key === \"symbol\") return undefined; throw new Error(%q); } });",
+							args.Path+" is only loaded in run()",
+						)
+						return esbuild.OnLoadResult{Contents: &contents, Loader: esbuild.LoaderJS}, nil
+					})
+				},
+			},
+			{
 				Name: "InjectGlobals",
 				Setup: func(build esbuild.PluginBuild) {
-					build.OnLoad(esbuild.OnLoadOptions{Filter: `\.(js|ts|jsx|tsx)$`},
+					// .cjs and .cts files are left out: adding imports makes a
+					// file an ES module, and they may use syntax only CommonJS
+					// allows, like a top-level return
+					build.OnLoad(esbuild.OnLoadOptions{Filter: `\.(m?[jt]s|[jt]sx)$`},
 						func(args esbuild.OnLoadArgs) (esbuild.OnLoadResult, error) {
 							if filepath.HasPrefix(args.Path, filepath.Join(input.Dir, ".sst")) {
 								return esbuild.OnLoadResult{}, nil
@@ -110,7 +193,7 @@ const __dirname = topLevelFileUrlToPath(new topLevelURL(".", import.meta.url))
 							}
 							newContents := string(contents)
 							if !strings.Contains(args.Path, ".sst") {
-								newContents = input.Globals + "\n" + newContents
+								newContents = globals + "\n" + newContents
 							}
 							return esbuild.OnLoadResult{
 								Contents: &newContents,
@@ -131,7 +214,7 @@ const __dirname = topLevelFileUrlToPath(new topLevelURL(".", import.meta.url))
 			"glob",
 			"vite", // The remix component uses vite to resolve the user's vite config file. We don't want to bundle it.
 		},
-		Define:   input.Define,
+		Define:   define,
 		Inject:   input.Inject,
 		Outfile:  outfile,
 		Write:    true,

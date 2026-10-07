@@ -156,11 +156,12 @@ func (p *Project) Run(ctx context.Context, input *StackInput) error {
 		return err
 	}
 
-	providerShim := []string{}
+	globals := []js.Global{}
 	for _, entry := range p.lock {
-		providerShim = append(providerShim, fmt.Sprintf("import * as %s from \"%s\";", entry.Alias, entry.Package))
+		globals = append(globals, js.Global{Name: entry.Alias, Module: entry.Package})
 	}
-	providerShim = append(providerShim, fmt.Sprintf("import * as sst from \"%s\";", path.Join(filepath.ToSlash(p.PathPlatformDir()), "src/components")))
+	components := path.Join(filepath.ToSlash(p.PathPlatformDir()), "src/components")
+	globals = append(globals, js.Global{Name: "sst", Module: components})
 
 	buildResult, err := js.Build(js.EvalOptions{
 		Dir:     p.PathRoot(),
@@ -171,7 +172,10 @@ func (p *Project) Run(ctx context.Context, input *StackInput) error {
 			"$dev": fmt.Sprintf("%v", input.Dev),
 		},
 		Inject:  []string{filepath.ToSlash(filepath.Join(p.PathWorkingDir(), "platform/src/shim/run.js"))},
-		Globals: strings.Join(providerShim, "\n"),
+		Globals: globals,
+		Platform: map[string]string{
+			"sst/components": path.Join(components, "index.ts"),
+		},
 		Code: fmt.Sprintf(`
       import { run } from "%v";
 			import mod from '%s';
