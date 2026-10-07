@@ -12,6 +12,15 @@ bun build ./functions/nodejs-runtime/loop.ts --target=node --outdir ./dist/nodej
 GOARCH=amd64 GOOS=linux go build -trimpath -buildvcs=false -mod=readonly -ldflags="-buildid=" -o ./dist/bridge/bootstrap ./functions/bridge
 node ./scripts/build.mjs
 
+# The platform's types, which apps and component packages read in place of
+# its source: compiled from src, plus the declaration files written by hand
+rm -rf ./dist/types
+npx tsc -p tsconfig.types.json || exit 1
+(cd src && find . -name "*.d.ts" | while read -r file; do
+  mkdir -p "../dist/types/$(dirname "$file")"
+  cp "$file" "../dist/types/$file"
+done)
+
 mkdir -p ./dist/nodejs-bridge
 cp ./functions/nodejs-bridge/index.mjs ./dist/nodejs-bridge/index.mjs
 cp ./dist/bridge/bootstrap ./dist/nodejs-bridge/bootstrap

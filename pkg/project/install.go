@@ -81,6 +81,11 @@ func (p *Project) Install() error {
 		return err
 	}
 
+	err = p.writeTsconfig()
+	if err != nil {
+		return err
+	}
+
 	err = p.writeProviderLock()
 	if err != nil {
 		return err
@@ -144,9 +149,10 @@ func (p *Project) writeTypes() error {
 	}
 	defer file.Close()
 
-	file.WriteString(`import "./src/global.d.ts"` + "\n")
+	types := "./" + platformTypes(p.PathPlatformDir())
+	file.WriteString(`import "` + types + `/global.d.ts"` + "\n")
 	file.WriteString(`import "../types.generated"` + "\n")
-	file.WriteString(`import { AppInput, App, Config } from "./src/config"` + "\n")
+	file.WriteString(`import { AppInput, App, Config } from "` + types + `/config"` + "\n")
 
 	for _, entry := range p.lock {
 		file.WriteString(`import * as _` + entry.Alias + ` from "` + entry.Package + `";` + "\n")
