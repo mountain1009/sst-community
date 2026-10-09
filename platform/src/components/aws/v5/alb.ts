@@ -111,9 +111,6 @@ export interface AlbArgs
  *   `HTTPS443`.
  * - A `domain` with `dns: false` and no `cert` is refused. There's nothing to validate
  *   a certificate with.
- * - The load balancer is removed before its certificate. `sst.aws.Alb` left the two in
- *   no order, so removing it could fail on a certificate that was still in use. Deploy
- *   once after you switch for this to take effect.
  */
 export class Alb extends component("sst:aws:Alb", parts) {
   // What the services on the load balancer and what links to it read
