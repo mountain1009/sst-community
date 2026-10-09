@@ -83,7 +83,7 @@ Resources are named after the app and stage, as in SST's components. That list o
 
 ## Try it
 
-You need [Go](https://go.dev/) and [Bun](https://bun.sh/).
+You need [Go](https://go.dev/) and [Bun](https://bun.sh/) to build it, and Node.js 22 or later to run it, as on `main` since 4.18.0.
 
 ```bash
 git clone -b v5 https://github.com/sst-community/sst

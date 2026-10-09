@@ -1,7 +1,6 @@
 name: release
 
 on:
-  workflow_dispatch:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
@@ -16,6 +15,11 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    # Only v* tags, which only admins and the releasers team can push, can run
+    # in this environment. npm's trusted publishers require it, and the Discord
+    # webhook is its secret, so a workflow on another branch can't publish or
+    # post.
+    environment: release
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -32,6 +36,26 @@ jobs:
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing can't create a package, so an adapter's first version
+      # is published by hand (see MAINTAINING.md). Stop here if one hasn't been,
+      # before anything is published: the bridge-task image and the CLI
+      # release, which can't be changed once it's out.
+      - name: Check the adapters are on npm
+        run: |
+          for dir in packages/*/; do
+            [ -f "${dir}package.json" ] || continue
+            [ "$(node -p "!!require('./${dir}package.json').private")" = false ] || continue
+            name=$(node -p "require('./${dir}package.json').name")
+            if ! out=$(npm view "$name" name 2>&1); then
+              if grep -q E404 <<< "$out"; then
+                echo "::error::$name isn't on npm. Publish its first version by hand; see MAINTAINING.md."
+              else
+                echo "$out"
+              fi
+              exit 1
+            fi
+          done
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -88,7 +112,46 @@ jobs:
           notes=".github/release-notes/${GITHUB_REF_NAME}.md"
           if [ -f "$notes" ]; then echo "args=--release-notes $notes" >> "$GITHUB_OUTPUT"; fi
 
+      # `sst version` names the SST release a build is on: the newest SST tag
+      # in its history. SST's tags go under refs/upstream-tags/, not
+      # refs/tags/, so goreleaser can't take one for the previous release.
+      - name: Find the SST release
+        run: |
+          git fetch --quiet --no-tags https://github.com/anomalyco/sst.git '+refs/tags/v*:refs/upstream-tags/v*'
+          base=$(git for-each-ref --merged HEAD --sort=-version:refname --format='%(refname:lstrip=2)' refs/upstream-tags/ \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+          echo "Built on SST ${base:-(none found)}"
+          echo "SST_UPSTREAM=${base#v}" >> "$GITHUB_ENV"
+
+      # A release that failed partway can be finished with "Re-run failed
+      # jobs": what's already out is skipped. A published GitHub release can't
+      # be changed, and an npm version can't be published twice. A lookup that
+      # fails for another reason stops here rather than guessing.
+      - name: See what's already released
+        id: done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if draft=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>&1); then
+            if [ "$draft" = false ]; then
+              echo "The GitHub release $GITHUB_REF_NAME is already published."
+              echo "github=true" >> "$GITHUB_OUTPUT"
+            fi
+          elif ! grep -q 'release not found' <<< "$draft"; then
+            echo "$draft"
+            exit 1
+          fi
+          spec="@sst-community/sst@${GITHUB_REF_NAME#v}"
+          if out=$(npm view "$spec" version 2>&1); then
+            echo "$spec is already on npm."
+            echo "npm=true" >> "$GITHUB_OUTPUT"
+          elif ! grep -q E404 <<< "$out"; then
+            echo "$out"
+            exit 1
+          fi
+
       - name: Release CLI
+        if: steps.done.outputs.github != 'true'
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -97,12 +160,51 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # On a re-run after the GitHub release is out but before npm has the CLI:
+      # build the binaries again for the npm packages, without publishing.
+      - name: Build CLI for npm
+        if: steps.done.outputs.github == 'true' && steps.done.outputs.npm != 'true'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean --skip=publish
+
       - name: Release JS SDK
+        if: steps.done.outputs.npm != 'true'
         run: |
           cd sdk/js
           bun run release
         # npm trusted publishing (OIDC via id-token: write), no token. Each
         # package needs a trusted publisher for this workflow on npmjs.com.
+        env:
+          NPM_CONFIG_PROVENANCE: true
+
+      # Publishes each adapter in packages/ whose version isn't on npm yet, so
+      # a pull request that bumps a version ships with the next release. Their
+      # tests run in their own workflows, not here. A new package's first
+      # version is published by hand; see MAINTAINING.md.
+      - name: Release adapters
+        run: |
+          for dir in packages/*/; do
+            [ -f "${dir}package.json" ] || continue
+            [ "$(node -p "!!require('./${dir}package.json').private")" = false ] || continue
+            name=$(node -p "require('./${dir}package.json').name")
+            version=$(node -p "require('./${dir}package.json').version")
+            if out=$(npm view "$name@$version" version 2>&1); then
+              echo "$name@$version is already on npm"
+              continue
+            elif ! grep -q E404 <<< "$out"; then
+              # Not a "no such version": don't guess, so a network error can't
+              # lead to publishing.
+              echo "$out"
+              exit 1
+            fi
+            tag=latest
+            case "$version" in *-*) tag=next ;; esac
+            # Verbose, so a refused publish shows npm's trusted-publishing steps.
+            (cd "$dir" && npm ci && npm publish --access public --tag "$tag" --loglevel verbose)
+          done
         env:
           NPM_CONFIG_PROVENANCE: true
 

@@ -71,7 +71,7 @@ func CmdMosaic(c *cli.Cli) error {
 		var cmd *exec.Cmd
 		var last *dev.EnvResponse
 		processExited := make(chan bool)
-		timeout := time.Minute * 50
+		timeout := time.Hour * 24
 		timer := time.NewTimer(timeout)
 		defer timer.Stop()
 
@@ -102,8 +102,15 @@ func CmdMosaic(c *cli.Cli) error {
 				if err != nil {
 					return err
 				}
-				if _, ok := nextEnv.Env["AWS_ACCESS_KEY_ID"]; ok {
+				if accessKeyID := nextEnv.Env["AWS_ACCESS_KEY_ID"]; accessKeyID != "" && timeout != time.Minute*45 {
 					timeout = time.Minute * 45
+					if !timer.Stop() {
+						select {
+						case <-timer.C:
+						default:
+						}
+					}
+					timer.Reset(timeout)
 				}
 				if last == nil || diff(last.Env, nextEnv.Env) || last.Command != nextEnv.Command {
 					if cmd != nil && cmd.Process != nil {
@@ -149,7 +156,7 @@ func CmdMosaic(c *cli.Cli) error {
 	}
 
 	if os.Getenv("SST_SERVER") != "" {
-		return util.NewReadableError(nil, "The dev command for this process does not look right. Check your dev script in package.json to make sure it is simply starting your process and not running `sst dev`. More info here: https://sst.dev/docs/reference/cli/#dev")
+		return util.NewReadableError(nil, "The dev command for this process does not look right. Check your dev script in package.json to make sure it is simply starting your process and not running `sst dev`. More info here: https://sst-community.github.io/sst/docs/reference/cli/#dev")
 	}
 
 	p, err := c.InitProject()
