@@ -134,6 +134,20 @@ See [the report](v5-aws-test-2026-10-01.md). It found three bugs that every test
 | `78c944bb2` | The root `README.md` gains "Your own components, from any provider". Its example is pinned by a test (`component.test.ts`, "the component in the README"). |
 | `27e9bfdde` | This folder. |
 
+## 2026-10-09
+
+### `main` merged in, through v4.18.1
+
+`498d42299` brings in v4.17.3 to v4.18.1 and SST v4.17.2, with Pulumi 3.267 and the provider updates. The typecheck passed as merged. Three of `main`'s fixes to 4.x components that have ports failed the takeover check, since the 4.x side now does something the port didn't:
+
+| Commit | What |
+| --- | --- |
+| `1e5e5e7c1` | `Function`'s URL permissions wait for the URL, as on `main` (6d25598a5). The live description is guarded against `undefined` (9731fd9da). |
+| `0bdaf2bd0` | `ApiGatewayV2` with `cors: false` leaves the CORS config out instead of setting `{}` (532d42af1). |
+| `b94918c36` | `Alb` and `Service` on `main` now remove the load balancer before its certificate (c15977224), as the ports already did. The "Switch from" notes and the Alb test that said 4.x didn't are gone. |
+
+Checked by hand, since the takeover check can't see them: no docs link in the ports points at sst.dev, and `main`'s WebSocket authorizer and API Gateway account fixes are in code the ports don't use.
+
 ## What the harness can and can't see
 
 It records what's registered with the engine and compares, between a 4.x component and its v5 port: each resource's address (through aliases, as Pulumi resolves them), inputs, deploy options, registered outputs, what a function is built from, and what depends on what.
