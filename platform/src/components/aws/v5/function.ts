@@ -722,7 +722,7 @@ export class Function extends component("sst:aws:Function", parts) {
                   ...props,
                   description: props.description
                     ? output(props.description as Input<string>).apply(
-                        (v) => `${v.substring(0, 240)} (live)`,
+                        (v) => (v ? `${v.substring(0, 240)} (live)` : "live"),
                       )
                     : "live",
                   runtime: durable ? "nodejs24.x" : "provided.al2023",
@@ -1225,19 +1225,32 @@ export class Function extends component("sst:aws:Function", parts) {
         cors: ifSet(url.cors),
       });
 
+      // Lambda takes one change to a function at a time, so a permission
+      // added while the URL is still being created can fail with a conflict.
+      // The permissions wait for the URL.
+      const afterUrl = { dependsOn: [fnUrl] };
+
       const allowEveryone = () => {
-        self.part("urlAccess", {
-          action: "lambda:InvokeFunctionUrl",
-          function: fn.name,
-          principal: "*",
-          functionUrlAuthType: "NONE",
-        });
-        self.part("urlInvoke", {
-          action: "lambda:InvokeFunction",
-          function: fn.name,
-          principal: "*",
-          invokedViaFunctionUrl: true,
-        });
+        self.part(
+          "urlAccess",
+          {
+            action: "lambda:InvokeFunctionUrl",
+            function: fn.name,
+            principal: "*",
+            functionUrlAuthType: "NONE",
+          },
+          afterUrl,
+        );
+        self.part(
+          "urlInvoke",
+          {
+            action: "lambda:InvokeFunction",
+            function: fn.name,
+            principal: "*",
+            invokedViaFunctionUrl: true,
+          },
+          afterUrl,
+        );
       };
 
       if (!route) {
@@ -1250,19 +1263,27 @@ export class Function extends component("sst:aws:Function", parts) {
       all([isOac, route.routerDistributionArn]).apply(
         ([oac, distributionArn]) => {
           if (oac && distributionArn) {
-            self.part("urlAccess", {
-              action: "lambda:InvokeFunctionUrl",
-              function: fn.name,
-              principal: "cloudfront.amazonaws.com",
-              sourceArn: distributionArn,
-            });
-            self.part("urlInvoke", {
-              action: "lambda:InvokeFunction",
-              function: fn.name,
-              principal: "cloudfront.amazonaws.com",
-              sourceArn: distributionArn,
-              invokedViaFunctionUrl: true,
-            });
+            self.part(
+              "urlAccess",
+              {
+                action: "lambda:InvokeFunctionUrl",
+                function: fn.name,
+                principal: "cloudfront.amazonaws.com",
+                sourceArn: distributionArn,
+              },
+              afterUrl,
+            );
+            self.part(
+              "urlInvoke",
+              {
+                action: "lambda:InvokeFunction",
+                function: fn.name,
+                principal: "cloudfront.amazonaws.com",
+                sourceArn: distributionArn,
+                invokedViaFunctionUrl: true,
+              },
+              afterUrl,
+            );
           } else if (authorization === "none") allowEveryone();
         },
       );
