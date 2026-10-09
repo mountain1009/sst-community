@@ -785,7 +785,9 @@ const ACCESS_LOG_FORMAT = JSON.stringify({
 type Cors = Exclude<$util.Unwrap<OriginalApiGatewayV2Args["cors"]>, undefined>;
 
 function corsConfiguration(cors: Cors | undefined) {
-  if (cors === false) return {};
+  // Left out, not `{}`. AWS keeps `{}` as a CORS config that allows nothing,
+  // and while an API has one it answers preflight requests itself.
+  if (cors === false) return undefined;
 
   const defaults = {
     allowHeaders: ["*"],
