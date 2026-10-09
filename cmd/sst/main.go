@@ -165,7 +165,7 @@ var root = &cli.Command{
 			"```",
 			"",
 			":::note",
-			"The CLI currently supports macOS, Linux, and WSL. Windows support is in beta.",
+			"The CLI currently supports macOS, Linux, and WSL. Windows support is in beta. It needs Node.js 22 or later, which runs your `sst.config.ts`.",
 			":::",
 			"",
 			"To install a specific version.",
@@ -692,8 +692,6 @@ var root = &cli.Command{
 				Short: "Manage secrets",
 				Long: strings.Join([]string{
 					"Manage the secrets in your app defined with `sst.Secret`.",
-					"",
-					"<VideoAside title=\"Watch a video on how secrets work\" href=\"https://youtu.be/7tW2L3P6LKw\" />",
 					"",
 					"The `--fallback` flag can be used to manage the fallback values of a secret.",
 					"",

@@ -110,6 +110,7 @@ func (p *Project) Run(ctx context.Context, input *StackInput) error {
 			cmd.Env = append(cmd.Env,
 				"PULUMI_BACKEND_URL="+filepath.ToSlash("file://"+workdir.Backend()),
 				"PULUMI_CONFIG_PASSPHRASE="+passphrase,
+				"PULUMI_HOME="+global.ConfigDir(),
 			)
 			err := cmd.Run()
 			if err != nil {
@@ -615,7 +616,7 @@ loop:
 						Message: "Your app state is corrupted.",
 						Help: []string{
 							"Run `sst state repair` to fix state integrity issues",
-							"Learn more: https://sst.dev/docs/reference/cli/#state-repair",
+							"Learn more: https://sst-community.github.io/sst/docs/reference/cli/#state-repair",
 						},
 					})
 				} else {

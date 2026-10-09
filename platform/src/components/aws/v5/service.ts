@@ -1236,9 +1236,6 @@ export interface ServiceArgs
  * - If you set part of the ECS service's `networkConfiguration` or
  *   `deploymentCircuitBreaker`, of a target group's `healthCheck`, or of the task
  *   definition's `runtimePlatform`, with an object in `transform`, the rest of it is kept.
- * - The service's load balancer is removed before its certificate. `sst.aws.Service`
- *   left the two in no order, so removing it could fail on a certificate that was still
- *   in use. Deploy once after you switch for this to take effect.
  *
  * One thing changes on the first deploy, and nothing in AWS: what `sst dev` runs for each
  * container is kept inside the service now, so it's listed as removed and created again.

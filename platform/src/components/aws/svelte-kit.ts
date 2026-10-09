@@ -217,13 +217,32 @@ export interface SvelteKitArgs extends SsrSiteArgs {
    * }
    * ```
    *
-   * You also need to set the [`base`](https://kit.svelte.dev/docs/configuration#paths)
-   * to `/docs` in your `svelte.config.js` without a trailing slash.
+   * You also need to set the [`base`](https://svelte.dev/docs/kit/configuration#paths)
+   * to `/docs` in your SvelteKit config without a trailing slash. In SvelteKit 3, pass
+   * `paths` to the `sveltekit()` plugin in `vite.config.ts`. In SvelteKit 2, use
+   * `kit.paths` in `svelte.config.js`.
    *
    * :::caution
    * If routing to a path, you need to set that as the base path in your
    * SvelteKit app as well.
    * :::
+   *
+   * ```js title="vite.config.ts" {9}
+   * import adapter from "svelte-kit-sst";
+   * import { sveltekit } from "@sveltejs/kit/vite";
+   * import { defineConfig } from "vite";
+   *
+   * export default defineConfig({
+   *   plugins: [
+   *     sveltekit({
+   *       adapter: adapter(),
+   *       paths: { base: "/docs" }
+   *     })
+   *   ]
+   * });
+   * ```
+   *
+   * In SvelteKit 2, it goes in `svelte.config.js`.
    *
    * ```js title="svelte.config.js" {4}
    * export default {
@@ -283,7 +302,7 @@ export interface SvelteKitArgs extends SsrSiteArgs {
    * }
    * ```
    *
-   * Also, make sure to set the base path in your `svelte.config.js`, like above.
+   * Also, make sure to set the base path in your SvelteKit config, like above.
    */
   router?: SsrSiteArgs["router"];
   /**
@@ -324,7 +343,17 @@ export interface SvelteKitArgs extends SsrSiteArgs {
 }
 
 /**
- * The `SvelteKit` component lets you deploy a [SvelteKit](https://kit.svelte.dev/) app to AWS.
+ * The `SvelteKit` component lets you deploy a [SvelteKit](https://svelte.dev/docs/kit) app to AWS.
+ *
+ * In a route, `getClientAddress()` returns the visitor's IP address when requests come through
+ * CloudFront, read from the `CloudFront-Viewer-Address` header. The server function's URL is
+ * public unless `protection` is set to `"oac"` or `"oac-with-edge-signing"`, and anyone who
+ * has it can send their own header. If you use the address for rate limiting or to allow or
+ * block clients, set `protection` on this component, or on the `Router` if the site is served
+ * through one.
+ *
+ * If another CDN sits in front of CloudFront, the address is that CDN's. Read the header it
+ * sets instead.
  *
  * @example
  *
@@ -390,6 +419,31 @@ export interface SvelteKitArgs extends SsrSiteArgs {
  *
  * console.log(Resource.MyBucket.name);
  * ```
+ *
+ * #### Stream responses
+ *
+ * Turn on `streaming` in the adapter to stream responses from the server. The page's
+ * HTML is sent right away, and the promises a `load` function returns without
+ * awaiting are sent as they resolve.
+ *
+ * ```js title="vite.config.ts" {3}
+ * sveltekit({
+ *   adapter: adapter({ streaming: true })
+ * })
+ * ```
+ *
+ * In SvelteKit 2, it goes in `svelte.config.js`.
+ *
+ * ```js title="svelte.config.js" {3}
+ * export default {
+ *   kit: {
+ *     adapter: adapter({ streaming: true })
+ *   }
+ * };
+ * ```
+ *
+ * The function URL is then set up for [response streaming](https://docs.aws.amazon.com/lambda/latest/dg/configuration-response-streaming.html).
+ * This needs a newer version of the `svelte-kit-sst` adapter than 3.0.1, which doesn't have the option.
  */
 export class SvelteKit extends SsrSite {
   constructor(
@@ -415,11 +469,30 @@ export class SvelteKit extends SsrSite {
         const manifest = fs
           .readFileSync(path.join(serverOutputPath, "manifest.js"))
           .toString();
-        const appDir = manifest.match(/appDir: "(.+?)"/)?.[1];
-        const appPath = manifest.match(/appPath: "(.+?)"/)?.[1];
+        // SvelteKit 3 renamed these manifest fields from camelCase to snake_case
+        const appDir = manifest.match(/app(?:Dir|_dir): "(.+?)"/)?.[1];
+        const appPath = manifest.match(/app(?:Path|_path): "(.+?)"/)?.[1];
         if (appDir && appPath && appPath.endsWith(appDir)) {
           basepath = appPath.substring(0, appPath.length - appDir.length);
         }
+      } catch (e) {}
+
+      // Written by svelte-kit-sst 3.1.0 and later
+      let streaming = false;
+      try {
+        streaming =
+          JSON.parse(
+            fs
+              .readFileSync(
+                path.join(
+                  outputPath,
+                  ".svelte-kit",
+                  "svelte-kit-sst",
+                  "adapter.json",
+                ),
+              )
+              .toString(),
+          ).streaming === true;
       } catch (e) {}
 
       return {
@@ -428,8 +501,9 @@ export class SvelteKit extends SsrSite {
           handler: path.join(
             serverOutputPath,
             "lambda-handler",
-            "index.handler",
+            streaming ? "stream.handler" : "index.handler",
           ),
+          streaming,
           nodejs: {
             esbuild: {
               minify: process.env.SST_DEBUG ? false : true,
@@ -465,8 +539,10 @@ export class SvelteKit extends SsrSite {
             from: path.join(".svelte-kit", "svelte-kit-sst", "prerendered"),
             to: "",
             cached: false,
+            listFiles: true,
           },
         ],
+        hasStaticRoutes: true,
       };
     });
   }

@@ -26,7 +26,7 @@ We also have a few other Astro examples that you can refer to.
 We are going to create an Astro site, add an S3 Bucket for file uploads, and deploy it using the `Astro` component.
 
 :::tip[View source]
-You can [view the source](https://github.com/sst/sst/tree/dev/examples/aws-astro) of this example in our repo.
+You can [view the source](https://github.com/sst-community/sst/tree/main/examples/aws-astro) of this example in our repo.
 :::
 
 Before you get started, make sure to [configure your AWS credentials](/docs/iam-credentials#credentials).
@@ -57,7 +57,7 @@ npm install
 
 Select the defaults and pick **AWS**. This'll create a `sst.config.ts` file in your project root.
 
-It'll also ask you to update your `astro.config.mjs` with something like this.
+It'll also add the Astro adapter, `astro-sst`, to your `package.json`, and ask you to update your `astro.config.mjs` with something like this.
 
 ```diff lang="js" title="astro.config.mjs"
 + import aws from "astro-sst";
@@ -67,6 +67,8 @@ export default defineConfig({
 +  adapter: aws()
 });
 ```
+
+The adapter supports Astro 5.6 and later, 6 and 7. If you add SST to an existing app without `sst init`, install it yourself with `npm install astro-sst@npm:@sst-community/astro-sst`. SST's own `astro-sst` 3.x only supports Astro 5.
 
 ---
 
@@ -231,7 +233,7 @@ You can use any stage name here but it's good to create a new stage for producti
 We are going to create a Astro site, add an S3 Bucket for file uploads, and deploy it in a container with the `Cluster` component.
 
 :::tip[View source]
-You can [view the source](https://github.com/sst/sst/tree/dev/examples/aws-astro-container) of this example in our repo.
+You can [view the source](https://github.com/sst-community/sst/tree/main/examples/aws-astro-container) of this example in our repo.
 :::
 
 Before you get started, make sure to [configure your AWS credentials](/docs/iam-credentials#credentials).
