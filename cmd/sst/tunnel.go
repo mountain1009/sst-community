@@ -153,7 +153,11 @@ var CmdTunnel = &cli.Command{
 		fmt.Println(ui.TEXT_DIM.Render("Waiting for connections..."))
 		fmt.Println()
 		stderr, _ := tunnelCmd.StderrPipe()
-		tunnelCmd.Start()
+		if err := tunnelCmd.Start(); err != nil {
+			pipeRead.Close()
+			pipeWrite.Close()
+			return err
+		}
 		pipeRead.Close() // parent doesn't need read end
 		output, _ := io.ReadAll(stderr)
 		tunnelCmd.Wait()
@@ -260,12 +264,16 @@ var CmdTunnel = &cli.Command{
 				slog.Info("tunnel started")
 				ctx, cancel := context.WithCancel(c.Context)
 				defer cancel()
-				// detect parent death via stdin EOF
-				go func() {
-					io.Copy(io.Discard, os.Stdin)
-					slog.Info("stdin closed, shutting down tunnel")
-					cancel()
-				}()
+				// Detect parent death via stdin EOF. Only when stdin is the pipe the
+				// parent made: run by hand with stdin on /dev/null or a closed stdin,
+				// the tunnel would stop as soon as it started.
+				if info, err := os.Stdin.Stat(); err == nil && info.Mode()&os.ModeNamedPipe != 0 {
+					go func() {
+						io.Copy(io.Discard, os.Stdin)
+						slog.Info("stdin closed, shutting down tunnel")
+						cancel()
+					}()
+				}
 				err = tunnel.StartProxy(
 					ctx,
 					user,
