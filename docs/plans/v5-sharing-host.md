@@ -1,6 +1,6 @@
 # Sharing components, with SST as the host
 
-**Status: done 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`.** Planned in `2ecd2483c`. Each step below is its own commit, so any one of them can be reverted alone. None of it is on `v5` yet.
+**Status: done 2026-10-12, and on `v5`.** It was built on the branches `v5-sharing` and `v5-sharing-host`, and `v5` was moved forward to it, so each step below is a commit on `v5` and can be reverted alone. Planned in `2ecd2483c`.
 
 ## The goal
 
@@ -23,7 +23,7 @@ It's the pattern an editor's extensions follow: they get the editor's API from t
 
 ### Why not providers in the app's package.json
 
-[That proposal](v5-providers-in-package-json.md) was tried on the local branch `v5-sharing-deps`, in sixteen steps. With npm and pnpm, an app moved over without its state changing. But it moved a problem only a package's repo has onto every app:
+[That proposal](v5-providers-in-package-json.md) was tried on the local branch `v5-sharing-deps`, in sixteen steps. The branch was deleted on 2026-10-12. With npm and pnpm, an app moved over without its state changing. But it moved a problem only a package's repo has onto every app:
 
 - **An app without a `package.json` needed one**, with Pulumi and its providers in `node_modules`.
 - **SST no longer chose the versions.** Yarn needs a `resolutions` pin, and more than one copy of `@pulumi/pulumi` is possible with any package manager. A check on deploy catches them, but can't prevent them.
@@ -192,11 +192,8 @@ Steps 1 and 2 stand alone, and could go to `v5` first. Steps 3 and 4 need step 1
 - **An older provider version, within SST's major version:** already refused. 4.x stops with "SST needs 7.48.0 or higher" (`ErrProviderVersionTooLow`), so step 8 added only the upper bound.
 - **A component's type has three parts** (2026-10-12, `38447dc77`), `<package>:<module>:<Name>`, as Pulumi's convention is and as SST's own components have. `component()` refuses a type with two parts and says what to write, and the guide's and rulebook's examples use `acme:index:Uploads`. A link's type follows, as `acme.index.Uploads`. The CLI's fix for two parts (step 9) stays on v5 for now, not on `main` or sent to SST.
 - **A function's code in a package** (2026-10-12, `70b321483`): the guide says how, in "Ship a function's code". The handler is in the package's `exports`, and the component finds it with `createRequire(import.meta.url).resolve()`. There's no helper for it.
-
-## Open questions
-
-1. **A provider a package needs that the app hasn't added.** The deploy says to run `sst add` (open question 2 in [v5-sharing.md](v5-sharing.md)). Should `sst install` add it instead? A provider's settings, like its region, are in the config's `providers`, so adding one is a change to the config.
-2. **The platform's runtime dependencies in production installs.** An app that lists `sst` in `dependencies`, for `sst/resource`, also gets esbuild, archiver and glob after step 5. Every install of `sst` already brings the CLI's binary, about 96 MB, so they add little. A separate package for authors would keep them out, at the cost of a second package to publish.
+- **A provider a package needs that the app hasn't added** (2026-10-12): the deploy keeps saying to add it with `sst add`. A provider's settings, like its region, are in the config's `providers`, so that change is the app's to make.
+- **The platform's runtime dependencies in production installs** (2026-10-12): they stay in the one `sst` package. An app that lists `sst` in `dependencies`, for `sst/resource`, also gets esbuild, archiver and glob. Every install of `sst` already brings the CLI's binary, about 96 MB, so they add little, and a second package would have to be released with every version.
 
 ## Known limits
 
@@ -212,6 +209,8 @@ Steps 1 and 2 stand alone, and could go to `v5` first. Steps 3 and 4 need step 1
 - **Nothing can be published** until the release path for 5.x is settled ("Not done yet" 1 in [v5-sharing.md](v5-sharing.md)).
 
 ## What comes from v5-sharing-deps
+
+That branch was deleted on 2026-10-12, so its commits named here can't be looked up any more. The table says what each one was.
 
 | Commit there | Its step | Here |
 | --- | --- | --- |

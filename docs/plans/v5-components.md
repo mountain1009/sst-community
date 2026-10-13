@@ -36,6 +36,8 @@ Each of these was settled on the date given. Change one only on purpose, and rec
 | 2026-10-12 | **Components are shared as npm packages, with SST as the host.** The CLI keeps installing SST, Pulumi and the providers in `.sst/platform`, and a package gets the app's copies when it deploys. A package imports `sst/components` (or a group, like `sst/components/aws`) and its providers, and lists them as peer dependencies. Its repo builds and tests against the `sst` npm package. An app without a `package.json` lists packages in its config, under `packages`. Installing the providers in the app's `package.json` was tried on `v5-sharing-deps` and not taken. See [v5-sharing-host.md](v5-sharing-host.md). |
 | 2026-10-12 | **A provider version in the config has to be in the major version SST's components are built for** (before 1.0, the minor version). An older one was already refused. |
 | 2026-10-12 | **A component's type has three parts**, `<package>:<module>:<Name>`. `component()` refuses two. |
+| 2026-10-12 | **A provider a package needs is added by the app**, with `sst add`, as the deploy says. A provider's settings are in the config, so `sst install` doesn't write it there. |
+| 2026-10-12 | **One `sst` package.** It carries SST's components for a package's repo too. esbuild, archiver and glob come with it in an app's production install, which add little next to the CLI's binary. |
 
 Since 2026-10-09 a 4.x file can change, so `git diff --stat main -- platform/src cmd/sst` lists what differs from `main`.
 
@@ -58,7 +60,7 @@ Since 2026-10-09 a 4.x file can change, so `git diff --stat main -- platform/src
 
 **Where things stand (2026-10-01):** everything above is committed and pushed. `git log origin/v5` has the latest.
 
-**Sharing components (2026-10-12):** done on the local branches `v5-sharing` and `v5-sharing-host`, not on `v5` yet. See [v5-sharing-host.md](v5-sharing-host.md).
+**Sharing components (2026-10-12):** on `v5`, from the branches `v5-sharing` and `v5-sharing-host`. See [v5-sharing-host.md](v5-sharing-host.md).
 
 ## Order from here
 

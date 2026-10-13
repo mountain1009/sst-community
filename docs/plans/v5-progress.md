@@ -152,7 +152,7 @@ Checked by hand, since the takeover check can't see them: no docs link in the po
 
 ### Sharing components as packages
 
-On the local branches `v5-sharing` and `v5-sharing-host`, not on `v5` yet. The design is in [v5-sharing.md](v5-sharing.md), and the plan it was finished with in [v5-sharing-host.md](v5-sharing-host.md).
+Built on the branches `v5-sharing` and `v5-sharing-host`, and on `v5` since 2026-10-12, which was moved forward to them. The design is in [v5-sharing.md](v5-sharing.md), and the plan it was finished with in [v5-sharing-host.md](v5-sharing-host.md).
 
 First, on `v5-sharing` (2026-10-07):
 
@@ -167,7 +167,7 @@ First, on `v5-sharing` (2026-10-07):
 | `2a9b0c36b` | `sst upgrade` and `sst init` stay in the CLI's own major version. |
 | `9270952d5` | "Share it" in the component guide. |
 
-Installing the providers in the app's `package.json` was then tried on `v5-sharing-deps` ([the proposal](v5-providers-in-package-json.md)), and not taken. Then, on `v5-sharing-host` (2026-10-12), with SST as the host:
+Installing the providers in the app's `package.json` was then tried on `v5-sharing-deps` ([the proposal](v5-providers-in-package-json.md)), and not taken. That branch has since been deleted. Then, on `v5-sharing-host` (2026-10-12), with SST as the host:
 
 | Commit | What |
 | --- | --- |

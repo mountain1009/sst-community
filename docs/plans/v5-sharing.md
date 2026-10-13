@@ -1,6 +1,6 @@
 # Sharing components as packages
 
-Built 2026-10-06 on the local branch `v5-sharing`, from `v5`, and finished 2026-10-12 on `v5-sharing-host`, from `v5-sharing` ([its plan](v5-sharing-host.md)). Neither is on `v5` yet.
+Built 2026-10-06 on the local branch `v5-sharing`, from `v5`, and finished 2026-10-12 on `v5-sharing-host`, from `v5-sharing` ([its plan](v5-sharing-host.md)). Both are on `v5` since then.
 
 ## Goal
 
@@ -98,5 +98,4 @@ In an app, both resolve to the app's own copies in `.sst/platform`, at deploy ti
 ## Open questions
 
 1. **The 5.x channel.** Prereleases on npm `next`, never the GitHub latest release, until 5.0.0? Or keep the whole major off `latest`?
-2. **Providers a package needs.** A deploy fails and says to run `sst add`. Should it add them to the app's providers itself instead?
-3. **The import name.** `sst/components` reads well. It sits beside the SDK's `sst/*` exports, which have no `components`.
+2. **The import name.** `sst/components` reads well. It sits beside the SDK's `sst/*` exports, which have no `components`.

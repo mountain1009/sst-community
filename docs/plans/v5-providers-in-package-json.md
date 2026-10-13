@@ -1,6 +1,6 @@
 # Providers in the app's package.json
 
-**Status: not taken (2026-10-12).** It was tried on the local branch `v5-sharing-deps`, where this note has every step and what each found. It worked, but it moved onto every app what only a component package's repo needed. [v5-sharing-host.md](v5-sharing-host.md) is the plan instead, and says why. This copy is the proposal as it was written.
+**Status: not taken (2026-10-12).** It was tried on the local branch `v5-sharing-deps`, where this note had every step and what each found. That branch was deleted on 2026-10-12. It worked, but it moved onto every app what only a component package's repo needed. [v5-sharing-host.md](v5-sharing-host.md) is the plan instead, and says why. This copy is the proposal as it was written.
 
 ## The question
 
