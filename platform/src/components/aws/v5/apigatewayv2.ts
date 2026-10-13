@@ -3,6 +3,7 @@ import {
   all,
   interpolate,
   output,
+  type Unwrap,
 } from "@pulumi/pulumi";
 import { apigatewayv2, cloudwatch, lambda } from "@pulumi/aws";
 import {
@@ -782,7 +783,7 @@ const ACCESS_LOG_FORMAT = JSON.stringify({
   //cognitoIdentityId:`"$context.identity.cognitoIdentityId"`, // not supported in us-west-2 region
 });
 
-type Cors = Exclude<$util.Unwrap<OriginalApiGatewayV2Args["cors"]>, undefined>;
+type Cors = Exclude<Unwrap<OriginalApiGatewayV2Args["cors"]>, undefined>;
 
 function corsConfiguration(cors: Cors | undefined) {
   // Left out, not `{}`. AWS keeps `{}` as a CORS config that allows nothing,
@@ -803,10 +804,7 @@ function corsConfiguration(cors: Cors | undefined) {
       };
 }
 
-type Auth = Exclude<
-  $util.Unwrap<OriginalApiGatewayV2RouteArgs["auth"]>,
-  undefined
->;
+type Auth = Exclude<Unwrap<OriginalApiGatewayV2RouteArgs["auth"]>, undefined>;
 
 // How a route is authorized, in the terms API Gateway takes
 function authorization(auth: Auth | undefined): {

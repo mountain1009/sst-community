@@ -4,6 +4,7 @@ import {
   interpolate,
   type Output,
   output,
+  type Unwrap,
 } from "@pulumi/pulumi";
 import {
   appautoscaling,
@@ -2184,7 +2185,7 @@ function scalingOf(
 
 // How the service's tasks are split between Fargate and Fargate Spot
 function capacityStrategies(
-  capacity: Exclude<$util.Unwrap<ServiceArgs["capacity"]>, undefined>,
+  capacity: Exclude<Unwrap<ServiceArgs["capacity"]>, undefined>,
 ) {
   const { fargate, spot }: Exclude<typeof capacity, "spot"> =
     capacity === "spot"

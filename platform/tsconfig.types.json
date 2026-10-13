@@ -16,5 +16,8 @@
       "@pulumi/pulumi/*": ["../node_modules/@pulumi/pulumi/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Without the `sst` global, the declarations name SST's types through
+  // their modules (see src/global-aliases.d.ts)
+  "exclude": ["templates", "functions", "src/global-aliases.d.ts"]
 }

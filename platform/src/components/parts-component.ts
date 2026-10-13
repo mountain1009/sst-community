@@ -1,5 +1,6 @@
 import {
   type ComponentResourceOptions,
+  type CustomResourceOptions,
   type Input,
   type Inputs,
   type Output,
@@ -268,13 +269,13 @@ export class PartsComponent<P extends Parts> extends Component {
   protected part<K extends SingleKeys<P> & CreatedKeys<P>>(
     key: K,
     args: PartArgs<P[K]>,
-    opts?: $util.CustomResourceOptions,
+    opts?: CustomResourceOptions,
   ): InstanceType<PartClassOf<P[K]>>;
   protected part<K extends ManyKeys<P> & CreatedKeys<P>>(
     key: K,
     id: string,
     args: PartArgs<P[K]>,
-    opts?: $util.CustomResourceOptions,
+    opts?: CustomResourceOptions,
   ): InstanceType<PartClassOf<P[K]>>;
   protected part(key: string, ...rest: any[]) {
     const part = this.partClasses[key];
@@ -339,13 +340,13 @@ export class PartsComponent<P extends Parts> extends Component {
   protected lookupPart<K extends SingleKeys<P> & CreatedKeys<P>>(
     key: K,
     resourceId: Input<string>,
-    opts?: $util.CustomResourceOptions,
+    opts?: CustomResourceOptions,
   ): InstanceType<PartClassOf<P[K]>>;
   protected lookupPart<K extends ManyKeys<P> & CreatedKeys<P>>(
     key: K,
     id: string,
     resourceId: Input<string>,
-    opts?: $util.CustomResourceOptions,
+    opts?: CustomResourceOptions,
   ): InstanceType<PartClassOf<P[K]>>;
   protected lookupPart(key: string, ...rest: any[]) {
     const [id, resourceId, opts] = isMany(this.partClasses[key])
@@ -532,11 +533,7 @@ export class PartsComponent<P extends Parts> extends Component {
     return many;
   }
 
-  private existingOf(
-    key: string,
-    id?: string,
-    opts?: $util.CustomResourceOptions,
-  ) {
+  private existingOf(key: string, id?: string, opts?: CustomResourceOptions) {
     const existing = at(this.partExisting, key, id);
     if (existing === undefined) return undefined;
 
@@ -557,7 +554,7 @@ export class PartsComponent<P extends Parts> extends Component {
     key: string,
     id: string | undefined,
     resourceId: unknown,
-    opts?: $util.CustomResourceOptions,
+    opts?: CustomResourceOptions,
   ) {
     const lookup = partClass(this.partClasses[key]) as unknown as {
       get?: Function;

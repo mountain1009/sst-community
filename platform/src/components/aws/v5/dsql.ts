@@ -1,4 +1,8 @@
-import { all, ComponentResourceOptions } from "@pulumi/pulumi";
+import {
+  all,
+  ComponentResourceOptions,
+  type ProviderResource,
+} from "@pulumi/pulumi";
 import { backup, dsql, ec2, iam, type Region } from "@pulumi/aws";
 import {
   ComponentArgs,
@@ -521,7 +525,7 @@ export class Dsql extends component("sst:aws:Dsql", parts) {
 
     function peerVaultArgs(
       transform: NonNullable<DsqlArgs["transform"]>["backupVault"],
-      peer: { provider: $util.ProviderResource },
+      peer: { provider: ProviderResource },
     ) {
       const [, vaultArgs, vaultOpts] = transformPart<backup.VaultArgs>(
         transform,

@@ -401,7 +401,7 @@ export class SnsTopic extends Component implements Link.Linkable {
     topicArn: string | Output<string>,
     subscriber: Input<string | FunctionArgs | FunctionArn>,
     args: SnsTopicSubscriberArgs = {},
-    opts: $util.ComponentResourceOptions = {},
+    opts: ComponentResourceOptions = {},
   ) {
     return output(args).apply(
       (args) =>
@@ -422,7 +422,7 @@ export class SnsTopic extends Component implements Link.Linkable {
     topicArn: string | Output<string>,
     subscriber: Input<string | FunctionArgs | FunctionArn>,
     args: SnsTopicSubscriberArgs = {},
-    opts: $util.ComponentResourceOptions = {},
+    opts: ComponentResourceOptions = {},
   ) {
     return all([subscriber, args]).apply(([subscriber, args]) => {
       const suffix = logicalName(

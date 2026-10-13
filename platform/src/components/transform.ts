@@ -1,4 +1,5 @@
 import {
+  type CustomResourceOptions,
   type OutputInstance,
   type Resource,
   Output,
@@ -7,13 +8,13 @@ import {
 
 export type Transform<T> =
   | Partial<T>
-  | ((args: T, opts: $util.CustomResourceOptions, name: string) => undefined);
+  | ((args: T, opts: CustomResourceOptions, name: string) => undefined);
 
 export function transform<T extends object>(
   transform: Transform<T> | undefined,
   name: string,
   args: T,
-  opts: $util.CustomResourceOptions,
+  opts: CustomResourceOptions,
 ) {
   // Case: transform is a function
   if (typeof transform === "function") {
@@ -53,7 +54,7 @@ type Whole =
  */
 export type PartTransform<T> =
   | PartialArgs<T>
-  | ((args: T, opts: $util.CustomResourceOptions, name: string) => undefined);
+  | ((args: T, opts: CustomResourceOptions, name: string) => undefined);
 
 /**
  * Applies a transform to one of a component's parts. Unlike `transform()`,
@@ -63,7 +64,7 @@ export function transformPart<T extends object>(
   transform: PartTransform<T> | undefined,
   name: string,
   args: T,
-  opts: $util.CustomResourceOptions,
+  opts: CustomResourceOptions,
 ) {
   if (typeof transform === "function") {
     transform(args, opts, name);

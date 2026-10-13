@@ -3070,7 +3070,26 @@ function patchCode() {
   );
   fs.copyFileSync("./input-patch.ts", "../platform/src/components/input.ts");
   // patch global
-  const globalType = fs.readFileSync("../platform/src/global.d.ts");
+  // The globals that alias modules, `sst` and `$util`, are in a file of their
+  // own (see its comment). Put them back in global.d.ts, as one file.
+  const aliases = fs
+    .readFileSync("../platform/src/global-aliases.d.ts")
+    .toString();
+  const globalType = fs
+    .readFileSync("../platform/src/global.d.ts")
+    .toString()
+    .replace(
+      'import * as util from "@pulumi/pulumi";',
+      'import * as util from "@pulumi/pulumi";\nimport * as _sst from "./components/index";',
+    )
+    .replace(
+      "declare global {",
+      "declare global {" +
+        aliases.slice(
+          aliases.indexOf("declare global {") + "declare global {".length,
+          aliases.lastIndexOf("}"),
+        ),
+    );
   fs.writeFileSync(
     "../platform/src/global-config.d.ts",
     globalType

@@ -125,7 +125,7 @@ export class KinesisStream extends Component implements Link.Linkable {
   constructor(
     name: string,
     args: KinesisStreamArgs = {},
-    opts: $util.ComponentResourceOptions = {},
+    opts: ComponentResourceOptions = {},
   ) {
     super(__pulumiType, name, args, opts);
 

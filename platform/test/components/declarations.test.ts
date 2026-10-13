@@ -103,6 +103,7 @@ describe("a component in a package", () => {
       // with the AWS provider
       "config.d.ts": `
         import "../../../src/global.d.ts";
+        import "../../../src/global-aliases.d.ts";
         import * as _aws from "@pulumi/aws";
         declare global {
           // @ts-expect-error

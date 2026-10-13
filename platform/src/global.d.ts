@@ -25,7 +25,6 @@
 
 import "@types/node";
 import * as util from "@pulumi/pulumi";
-import * as _sst from "./components/index";
 import { $config as config, App } from "./config";
 
 type Simplify<T> = {
@@ -68,35 +67,8 @@ interface $APP
   }> {}
 
 declare global {
-  // @ts-expect-error
-  export import sst = _sst;
-
   /** @internal */
   export const $linkable: typeof import("./components/link").Link.linkable;
-
-  /**
-   * A convenience reference to the [`util`](https://www.pulumi.com/docs/reference/pkg/nodejs/pulumi/pulumi/) module from Pulumi.
-   *
-   * This is useful for working with components. You can use these without importing or installing the Pulumi SDK.
-   *
-   * @example
-   *
-   * For example, to create a new asset, you can:
-   *
-   * ```ts title="sst.config.ts"
-   * const myFiles = new $util.asset.FileArchive("./path/to/files");
-   * ```
-   *
-   * This is equivalent to doing:
-   *
-   * ```ts title="sst.config.ts"
-   * import * as pulumi from "@pulumi/pulumi";
-   *
-   * const myFiles = new pulumi.asset.FileArchive("./path/to/files");
-   * ```
-   */
-  // @ts-expect-error
-  export import $util = util;
 
   /** @internal */
   export const $output: typeof util.output;

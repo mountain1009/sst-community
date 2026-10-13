@@ -151,6 +151,7 @@ func (p *Project) writeTypes() error {
 
 	types := "./" + platformTypes(p.PathPlatformDir())
 	file.WriteString(`import "` + types + `/global.d.ts"` + "\n")
+	file.WriteString(`import "` + types + `/global-aliases.d.ts"` + "\n")
 	file.WriteString(`import "../types.generated"` + "\n")
 	file.WriteString(`import { AppInput, App, Config } from "` + types + `/config"` + "\n")
 

@@ -1,5 +1,5 @@
 import { lambda } from "@pulumi/aws";
-import { output } from "@pulumi/pulumi";
+import { type ComponentResourceOptions, output } from "@pulumi/pulumi";
 import { Component, transform } from "../component";
 import { Input } from "../input.js";
 import { FunctionArgs } from "./function.js";
@@ -35,7 +35,7 @@ export interface Args extends KinesisStreamLambdaSubscriberArgs {
 export class KinesisStreamLambdaSubscriber extends Component {
   private readonly fn: FunctionBuilder;
   private readonly eventSourceMapping: lambda.EventSourceMapping;
-  constructor(name: string, args: Args, opts?: $util.ComponentResourceOptions) {
+  constructor(name: string, args: Args, opts?: ComponentResourceOptions) {
     super(__pulumiType, name, args, opts);
 
     const self = this;

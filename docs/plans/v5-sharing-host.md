@@ -1,6 +1,6 @@
 # Sharing components, with SST as the host
 
-**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 and 2 are done.** Each step below is its own commit, so any one of them can be reverted alone.
+**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 3 are done.** Each step below is its own commit, so any one of them can be reverted alone.
 
 ## The goal
 
@@ -119,7 +119,7 @@ Each is its own commit. A step taken from `v5-sharing-deps` names its commit the
 
 2. **An error's line in an app file** (done). Bring over `cad5baa86` (step 13): the globals' imports go at the end of a file instead of the top, so its lines keep their numbers. It's a few lines in `pkg/js/js.go`, likely redone by hand, since that file moved on there before it. Checked by its test, which runs a bundle with source maps and checks the line.
 
-3. **SST's types name no globals.** Bring over `ae3d39f0a` (step 14). The `sst` and `$util` aliases move to `platform/src/global-aliases.d.ts`, which the types build leaves out, and the 19 uses of `$util` in types become imports from Pulumi. Without it, SST's declarations name types through its globals, 487 times. A package's repo has no globals, so there `tsc` fails on a V5 component's `nodes`, and Pulumi's types become `any`. Leave out its line in `dependencies_test.go`, which isn't on this branch. Checked: `tsc`, `declarations.test.ts`, and the generated docs identical before and after.
+3. **SST's types name no globals** (done). Bring over `ae3d39f0a` (step 14). The `sst` and `$util` aliases move to `platform/src/global-aliases.d.ts`, which the types build leaves out, and the 19 uses of `$util` in types become imports from Pulumi. Without it, SST's declarations name types through its globals, 487 times. A package's repo has no globals, so there `tsc` fails on a V5 component's `nodes`, and Pulumi's types become `any`. Leave out its line in `dependencies_test.go`, which isn't on this branch. The templates' `global.d.ts` imports the aliases too, which that commit missed. Checked: `tsc`, `declarations.test.ts`, and the generated docs identical before and after.
 
 4. **A core, and a group for each provider.** Port the components part of `7530dfa56` (step 11):
    - `sst/components` is the core: what SST's components share. `sst/components/aws`, `/cloudflare` and `/vercel` are each provider's components. The `sst` global is all of them, as before.

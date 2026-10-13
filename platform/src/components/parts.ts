@@ -1,4 +1,4 @@
-import type { Input, Output } from "@pulumi/pulumi";
+import type { CustomResourceOptions, Input, Output } from "@pulumi/pulumi";
 import type { PartTransform, PartialArgs } from "./transform";
 
 /**
@@ -188,7 +188,7 @@ export type ManyTransform<T> =
   | PartialArgs<T>
   | ((
       args: T,
-      opts: $util.CustomResourceOptions,
+      opts: CustomResourceOptions,
       name: string,
       id: string,
     ) => undefined);
