@@ -192,19 +192,25 @@ func (r *Runtime) Build(ctx context.Context, input *runtime.BuildInput) (*runtim
 	)
 	log.Info("running esbuild")
 	if !input.Dev {
-		context, _ := esbuild.Context(options)
+		context, ctxErr := esbuild.Context(options)
+		if ctxErr != nil {
+			return nil, ctxErr
+		}
 		result = context.Rebuild()
 		context.Dispose()
 	}
 
 	if input.Dev {
-		match, ok := r.contexts.Load(input.FunctionID)
-		if !ok {
-			match, _ = esbuild.Context(options)
-			r.contexts.Store(input.FunctionID, match)
+		buildContext, ctxErr := r.acquireContext(input.FunctionID, options)
+		if ctxErr != nil {
+			return nil, ctxErr
 		}
-		result = match.(esbuild.BuildContext).Rebuild()
-		r.results.Store(input.FunctionID, result)
+		func() {
+			// release even if the rebuild panics, or the context stays pinned
+			defer r.releaseContext(input.FunctionID)
+			result = buildContext.Rebuild()
+		}()
+		r.storeInputs(input.FunctionID, result.Metafile)
 	}
 	log.Info("esbuild finished")
 
@@ -226,7 +232,16 @@ func (r *Runtime) Build(ctx context.Context, input *runtime.BuildInput) (*runtim
 	if input.Dev {
 		nodeModules, err := fs.FindUp(file, "node_modules")
 		if err == nil {
-			os.Symlink(nodeModules, filepath.Join(input.Out(), "node_modules"))
+			link := filepath.Join(input.Out(), "node_modules")
+			// a dev rebuild keeps the folder, so replace a link that points somewhere else
+			if target, err := os.Readlink(link); err == nil && target != nodeModules {
+				if err := os.Remove(link); err != nil {
+					slog.Warn("could not replace the node_modules link", "path", link, "error", err)
+				}
+			}
+			if err := os.Symlink(nodeModules, link); err != nil && !os.IsExist(err) {
+				slog.Warn("could not link node_modules", "path", link, "error", err)
+			}
 		}
 	}
 

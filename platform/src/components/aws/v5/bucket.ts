@@ -89,7 +89,7 @@ const parts = () => ({
 /** An arg as a plain value: what's left when it can't be an output or a promise. */
 
 type Notification = Plain<
-  Plain<BucketNotificationsArgs["notifications"]>[number]
+  Plain<NonNullable<BucketNotificationsArgs["notifications"]>>[number]
 >;
 
 export interface BucketArgs
