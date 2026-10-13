@@ -16,6 +16,7 @@ The hardest component, and the test of whether the framework holds.
 - **SST's own provider resources are parts** (`KvKeys`, `KvRoutesUpdate`, `FunctionEnvironmentUpdate`). They add `.sst.aws.<Type>` to their name; a `moved` entry for one needs the old name in full.
 - An arg the user's transform must not change goes in a Pulumi `transformations` entry on the part's options (the dev stub's runtime, architecture and description).
 - **It shares two app-wide resources with 4.x** through the 4.x class's private statics: `LambdaEncryptionKey` and the dev bridge code object.
+- **A function on a shared `bundle` reads its linked resources from `.sst/<name>/resource.enc`**, where the CLI writes them, and its zip leaves out the other functions' folders. It's what 4.x does since `main`'s #89 (2026-10-12). The comparison can't see the zip, so a test reads it.
 - **It trusts the account root only in `sst dev`**, as 4.x does since `main`'s #95 (2026-10-12). Before that, both trusted it in every role (see Decisions in the plan).
 - **The built code depends on nothing.** It's built from the function's links, and a link's name is read from the linked component; depending on a component is depending on everything in it. The build result is passed through `withoutDependencies()`. Without it a function part that links its own component waits for itself.
 - **What's made from a function's name changes when a function part is renamed:** its description, the key its code is uploaded under, and the router namespace of a URL behind a `Router`.

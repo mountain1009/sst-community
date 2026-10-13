@@ -941,8 +941,9 @@ export class Function extends component("sst:aws:Function", parts) {
         encryptionKey,
         args.link,
         args.streaming,
+        args.bundle,
         dev ? OriginalFunction.appsync() : undefined,
-      ]).apply(([environment, bootstrap, key, link, streaming, appsync]) => {
+      ]).apply(([environment, bootstrap, key, link, streaming, bundle, appsync]) => {
         const result = environment ?? {};
         result.SST_RESOURCE_App = JSON.stringify({
           name: $app.name,
@@ -956,7 +957,11 @@ export class Function extends component("sst:aws:Function", parts) {
           }
         }
         result.SST_KEY = key;
-        result.SST_KEY_FILE = "resource.enc";
+        // Functions that share a `bundle` each have their own file, under
+        // `.sst/<name>/`, where the CLI writes it
+        result.SST_KEY_FILE = bundle
+          ? `.sst/${name}/resource.enc`
+          : "resource.enc";
         if (dev) {
           result.SST_REGION = process.env.SST_AWS_REGION!;
           result.SST_APPSYNC_HTTP = appsync.http;
@@ -1111,14 +1116,15 @@ export class Function extends component("sst:aws:Function", parts) {
     }
 
     function createCode() {
-      const zip = all([built, entry, copyFiles]).apply(
-        ([built, entry, copyFiles]) =>
+      const zip = all([built, entry, copyFiles, args.bundle]).apply(
+        ([built, entry, copyFiles, customBundle]) =>
           zipCode({
             to: path.resolve($cli.paths.work, "artifacts", name, "code.zip"),
             bundle: built.bundle,
             sourcemaps: built.sourcemaps,
             copyFiles,
             wrapper: entry.wrapper,
+            sharedBundle: customBundle ? name : undefined,
           }),
       );
 

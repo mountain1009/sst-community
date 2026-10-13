@@ -122,6 +122,8 @@ describe("Function", () => {
       }),
       "no logging": () => ({ handler, logging: false }),
       "a url": () => ({ handler, url: true }),
+      // Its linked resources are read from its own file in the bundle
+      "its own bundle": () => ({ handler: "index.handler", bundle: "dist" }),
       "a url with iam authorization and cors": () => ({
         handler,
         streaming: true,

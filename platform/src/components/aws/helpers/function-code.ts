@@ -4,6 +4,7 @@ import crypto from "crypto";
 import archiver from "archiver";
 import { glob } from "glob";
 import { VisibleError } from "../../error";
+import { toPosix } from "../../path";
 import { rpc } from "../../rpc/rpc";
 
 /** What building a function gives: where its code is, and how it's called. */
@@ -148,8 +149,15 @@ export async function zipCode(input: {
   sourcemaps?: string[];
   /** A file to add. */
   wrapper?: FunctionFile;
+  /**
+   * For a function that shares its `bundle` with others: its name. The CLI
+   * writes each one's linked resources to `.sst/<name>/resource.enc` in the
+   * bundle, and the zip keeps only this function's.
+   */
+  sharedBundle?: string;
 }) {
-  const { to, bundle, copyFiles = [], sourcemaps, wrapper } = input;
+  const { to, bundle, copyFiles = [], sourcemaps, wrapper, sharedBundle } =
+    input;
   await fs.promises.mkdir(path.dirname(to), { recursive: true });
 
   await new Promise(async (resolve, reject) => {
@@ -175,8 +183,12 @@ export async function zipCode(input: {
         dot: true,
         ignore: sourcemaps?.map((item) => path.relative(bundle, item)) || [],
       });
+      const kept =
+        sharedBundle && item.from === bundle
+          ? found.filter((file) => ownFile(toPosix(file), sharedBundle))
+          : found;
       files.push(
-        ...found.map((file) => ({
+        ...kept.map((file) => ({
           from: path.join(item.from, file),
           to: path.join(item.to, file),
         })),
@@ -197,4 +209,16 @@ export async function zipCode(input: {
     .update(await fs.promises.readFile(to))
     .digest("hex");
   return { path: to, hash };
+}
+
+// Whether a file of a shared bundle goes in the zip of the function named
+// `name`: not another function's `.sst` folder, and not the `resource.enc` an
+// older version wrote at the root, for all of them
+export function ownFile(file: string, name: string) {
+  if (file === "resource.enc") return false;
+  return (
+    !file.startsWith(".sst/") ||
+    file === `.sst/${name}` ||
+    file.startsWith(`.sst/${name}/`)
+  );
 }
