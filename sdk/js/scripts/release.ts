@@ -79,7 +79,14 @@ async function published(name: string, version: string) {
   throw new Error(`npm view ${name}@${version} failed:\n${result.stderr}`);
 }
 
-const tag = snapshot ? "snapshot" : "latest";
+// A version with a suffix, such as 5.0.0-alpha.1, is a pre-release. It goes out
+// under its own tag, so `latest`, which an install without a version gets,
+// doesn't move.
+const tag = snapshot
+  ? "snapshot"
+  : nextPkg.version.includes("-")
+    ? "next-experimental"
+    : "latest";
 try {
   for (const { dir, name } of binaryPackages) {
     if (await published(name, nextPkg.version)) {

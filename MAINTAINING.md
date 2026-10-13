@@ -5,7 +5,7 @@ This is for maintainers and the agents working with them: how SST's releases are
 ## Branches
 
 - **`main`** is the 4.x line: an SST release plus the fork's commits. It is shared history. Merge SST into it. Never rebase it or force-push it.
-- **`v5`** is the fork's own major version, a rewrite of the components. It releases as 5.x and doesn't follow SST's numbering. Its plans and progress are in `docs/plans/` on that branch. Don't tag a 5.x release yet: `release.yml` publishes any `vX.Y.Z` tag, from any branch, to npm as `latest`.
+- **`v5`** is the fork's own major version, a rewrite of the components. It releases as 5.x and doesn't follow SST's numbering. Its plans and progress are in `docs/plans/` on that branch. For now it's released only as pre-releases, such as `v5.0.0-alpha.1`; see [Pre-releases of v5](#pre-releases-of-v5).
 
 `git log upstream/v<the SST release main is on>..main --first-parent` lists every commit the fork adds.
 
@@ -107,6 +107,27 @@ Things to know:
 - **The Discord webhook** is the `DISCORD_WEBHOOK_URL` secret of the `release` environment. Without it the step is skipped. `.github/scripts/announce-release.sh` is the script.
 - **Fork builds are labelled.** `.goreleaser.yml` sets `ui.Distribution=sst-community`, which `sst version` and the `sst dev` banner show, and `ui.Upstream` to the SST release the build is on, which `sst version` shows. Keep both out of `main.version`.
 
+### Pre-releases of v5
+
+v5 goes out as pre-releases from the `v5` branch, to npm and GitHub, without changing what 4.x users get. Only `v5`'s `release.yml` runs for a tag with a suffix; `main`'s doesn't.
+
+1. Write `.github/release-notes/v5.0.0-alpha.N.md`. Without it, the GitHub release lists every commit since the newest tag in `v5`'s history.
+2. Push the tag on a commit that's on `v5`: `v5.0.0-alpha.1`, then `v5.0.0-alpha.2`, and so on. Count up, and never reuse a number.
+
+For a tag with a suffix, `release.yml`:
+
+- publishes `@sst-community/sst` and its platform packages to npm under the `next-experimental` tag, leaving `latest` on 4.x
+- creates the GitHub release marked as a pre-release, which GitHub never makes the latest release, so the `install` script and `sst upgrade` on 4.x don't see it
+- builds the `bridge-task` image without pushing it, as every release's `sst dev` runs `bridge-task:latest`
+- doesn't publish the adapters or post to Discord
+
+Things to know:
+
+- **A 5.x tag without a suffix stops.** Before it builds anything, `release.yml` on `v5` fails a version whose major is newer than npm's `latest`, such as `v5.0.0` while 4.x is out. To release 5.0.0, remove the "Check the version" step in the commit you tag.
+- **Users install a pre-release** with `npm install sst@npm:@sst-community/sst@next-experimental`, or install the CLI alone with `curl -fsSL https://raw.githubusercontent.com/sst-community/sst/main/install | VERSION=5.0.0-alpha.1 bash`, which replaces their global CLI. A pre-release's `sst upgrade` moves to the newest 5.x version, pre-releases included, and its `sst init` writes that version.
+- **An app's `version` rule has to name a pre-release to accept one.** `">= 5.0.0-0"` accepts `5.0.0-alpha.1`, but `">= 4"`, `"5.x"` and `"*"` don't.
+- **`release.yml`, `.goreleaser.yml` and `sdk/js/scripts/release.ts` differ between `main` and `v5`.** When merging `main` into `v5` conflicts in one of them, keep `v5`'s pre-release changes.
+
 ## Building it yourself
 
 ```bash
@@ -202,7 +223,7 @@ Also:
 - **The automatic review is safe for forks because nothing from the pull request runs.** It uses `pull_request_target`, which runs the workflow from `main` with a token that can comment. It checks out `main` only, fetches the diff as text, and gives opencode no token and no tools but reading files (`.github/review/opencode.json`). Never make it check out or run the pull request's code.
 - **Merge methods:** squash for a contributor's pull request, a merge commit for an SST release. Rebase-merge is off.
 - **Committers** are the members of the `committers` team, which has Write access and owns every file in CODEOWNERS. Two committers can land a change between them: one opens the pull request, the other approves it. They can't release unless they're also in `releasers`, and a change to a file in CODEOWNERS still needs its owner. They can push branches other than `main` and `v5` and run workflows on them, which is why releasing goes through the `release` environment.
-- **Releasers** are the members of the `releasers` team, who are committers as well. They can push a release tag. A tag can point at any commit, and the release builds whatever it points at, with the `release.yml` of that commit, so the person who pushes the tag decides what's published. Tag only a commit that's on `main`.
+- **Releasers** are the members of the `releasers` team, who are committers as well. They can push a release tag. A tag can point at any commit, and the release builds whatever it points at, with the `release.yml` of that commit, so the person who pushes the tag decides what's published. Tag only a commit that's on `main`, or on `v5` for a pre-release of v5.
 - **Moderators** have the Triage role on the repo, given under Settings → Collaborators and teams. They label, close and reopen issues and pull requests, mark duplicates, hide comments, lock conversations and moderate Discussions. They can't push or merge, and their approval doesn't count. Blocking a user from the org takes an admin.
 - **Admins and releasers bypass the `main` rule.** A releaser can merge a pull request without an approval, their own included, but can't push to `main` directly. An admin can do both, which is how an SST release merge lands.
 - **Pull requests from forks** run `check.yml` with a read-only token and no secrets. A first-time contributor's run waits for a maintainer's approval.

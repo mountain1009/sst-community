@@ -33,6 +33,10 @@ archives:
           - zip
 checksum:
   name_template: "checksums.txt"
+# A tag with a suffix, such as v5.0.0-alpha.1, is published as a pre-release,
+# which GitHub never makes the latest release.
+release:
+  prerelease: auto
 snapshot:
   version_template: "0.0.0-{{ .Timestamp }}"
 nfpms:
