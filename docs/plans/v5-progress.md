@@ -219,7 +219,17 @@ And two features `main` added to components that have ports:
 | `e986c1b0d` | `Bucket.subscribeEventBridge`, which 4.x has as a static since v4.20.0, is a method of the v5 bucket, on the bucket or on `get`. 4.x named each subscription after the bucket's physical name, and the map works it out from `bucket.name`. As a static it would have needed a bus component per bucket, shared by every call. |
 | `9e3f1c749` | The root README's example component has a type with three parts, which `component()` asks for since `38447dc77`. Its test had been changed, and the README hadn't. |
 
-None of this, nor the fixes and features after the merge, has been deployed to AWS yet. Under the mock, `Bus` takes over every kind of 4.x subscriber with nothing changed, except a queue subscriber's provider, as with `SnsTopic`.
+### In AWS (2026-10-13)
+
+The lab app, on a stage of its own, in the order the first run used: deployed with 4.x, switched, diffed, deployed with v5, the states compared, what's deployed called, `sst dev`, removed. It had two functions on one bundle, each linked to its own resource, a `cloudfront` bucket, a bucket that publishes to EventBridge with a subscriber, a `Bus` with a function and a queue subscribed, and a serverless `Redis` in a VPC.
+
+- **The switch changed nothing in AWS that matters.** 62 of 65 resources kept their ids. Two subscribers' code was uploaded again under the function's new part name, as a renamed function part's is, and the default bus 4.x looked up left the state. What went from the diff was the 4.x wrappers, which have nothing in AWS behind them.
+- **Each function on the shared bundle read its own linked resource**, from `.sst/<name>/resource.enc`, and not the other's: with 4.x, with v5, and in `sst dev`.
+- **The `cloudfront` bucket's policy has the `aws:SourceArn` condition** for the account's distributions.
+- **An object put in the bucket reached the subscriber** as `Object Created`, with the bucket and the key. An event put on the bus reached the function and the queue.
+- **The serverless cache answered `AUTH` and `PING`** over TLS with the password SST made, from a function in the VPC.
+- **A deployed role trusts only Lambda. In `sst dev`, the account root too.**
+- The stage was removed, and its passphrase, sourcemaps and state files deleted after. The lab's audit lists what it did before, and the tagging API a subnet and a security group that are gone.
 
 ## What the harness can and can't see
 
