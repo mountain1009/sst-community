@@ -1017,10 +1017,10 @@ export class Function extends component("sst:aws:Function", parts) {
       const managed = (policy: string) =>
         interpolate`arn:${partition}:iam::aws:policy/service-role/${policy}`;
       return {
-        // The account is trusted too, so the CLI can take the role to run the
-        // function locally in `sst dev`. `Function` means to add that only in
-        // `sst dev`, but its check never passes, so every role it has
-        // deployed trusts the account. This matches what's deployed.
+        // Only `sst dev` trusts the account too, so the CLI can take the role
+        // to run the function locally. This goes by `$dev`, as `Function`
+        // does, and not by the function's own `dev`: a site's dev server is
+        // created with `dev: false`, and the CLI still takes its role.
         assumeRolePolicy: iam.getPolicyDocumentOutput({
           statements: [
             {
@@ -1030,14 +1030,18 @@ export class Function extends component("sst:aws:Function", parts) {
                   type: "Service",
                   identifiers: ["lambda.amazonaws.com"],
                 },
-                {
-                  type: "AWS",
-                  identifiers: [
-                    interpolate`arn:${partition}:iam::${
-                      getCallerIdentityOutput({}, opts).accountId
-                    }:root`,
-                  ],
-                },
+                ...($dev
+                  ? [
+                      {
+                        type: "AWS",
+                        identifiers: [
+                          interpolate`arn:${partition}:iam::${
+                            getCallerIdentityOutput({}, opts).accountId
+                          }:root`,
+                        ],
+                      },
+                    ]
+                  : []),
               ],
             },
           ],

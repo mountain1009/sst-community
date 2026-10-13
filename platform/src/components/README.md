@@ -443,9 +443,10 @@ takeover(ApiGatewayV2, {
 - A resource 4.x created outside of any component got no name from SST. Add its type to
   `UNPREFIXED_TYPES` in `naming-rules.ts` so it keeps the name the provider gave it
   (the V5 `Function` does this for the alias of a durable function's URL).
-- Reproduce what 4.x deploys, not what it means to. The 4.x `Function` trusts the
-  account in every role because a check never passes; the V5 one writes the same
-  policy, with a comment. Changing it is a decision of its own, not a side effect of a port.
+- Reproduce what 4.x deploys, not what it means to. The 4.x `Function` trusted the
+  account in every role because a check never passed, and the V5 one wrote the same
+  policy until `main` fixed 4.x. Changing it is a decision of its own, not a side
+  effect of a port. When 4.x changes what it deploys, the port follows.
 
 A resource that's created inside `.apply()` has to be given the output, not the
 value the callback was called with: the output is what says the resource depends on
