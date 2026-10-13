@@ -1,6 +1,6 @@
 # Sharing components, with SST as the host
 
-**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 6 are done.** Each step below is its own commit, so any one of them can be reverted alone.
+**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 7 are done.** Each step below is its own commit, so any one of them can be reverted alone.
 
 ## The goal
 
@@ -146,19 +146,25 @@ Each is its own commit. A step taken from `v5-sharing-deps` names its commit the
 
    The message `mock()` gives for a group whose providers aren't installed said "the app hasn't installed" them. It now says what to do in a package's repo, and in an app. `MAINTAINING.md` says how to pack `sst` for a dev build.
 
-7. **Packages listed in the config,** for an app without a `package.json`:
-   - A field in `app()`, beside `providers` (open question 1).
+7. **Packages listed in the config,** for an app without a `package.json` (done):
+   - `packages` in `app()`, beside `providers`, each with a version (decided 2026-10-12).
    - `sst install` adds them to `.sst/platform/package.json`, and installs them with the providers.
    - The bundler already falls back to `.sst/platform/node_modules` (`NodePaths` in `pkg/js/js.go`), so the config's import resolves.
    - `.sst/tsconfig.json` maps each one, so the editor finds its types.
    - The deploy's check of a package's `peerDependencies` covers them, as it covers a package in `node_modules`.
    - A package in both the app's `package.json` and the config is refused, so there's never two copies.
 
-   Checked: Go tests for the install and the check, and an app with no `package.json` deploying a package's component with local state.
+   What it took besides:
+   - **Reading `app()` before the first install.** The CLI reads `app()` before `sst install` runs, and a listed package isn't installed yet. That build already left out the providers. Now it leaves out any package it can't find, with a stub that says it's only loaded in `run()`. A build that runs the app still fails on a package it can't find.
+   - **What's installed is recorded after the install succeeds,** in `.sst/platform/installed-packages.json`, as the provider lock is. The platform's `package.json` couldn't say: it's written before bun runs. A package the config no longer lists is taken out of the platform, its folder too, which bun leaves.
+   - **The config is checked when it's read:** a version is required, and a package can't be a provider, `@pulumi/pulumi`, one of SST's own dependencies, or in the app's `package.json` too. Each says what to do instead.
+   - The config's type documents `packages`, and the guide's "Use it" shows it.
+
+   Checked: Go tests for the check, the install, the record, the removal, the tsconfig paths, and reading `app()` before the install (which fails without the stub). And with the CLI, on an app with only `sst.config.ts`, local state and a package from a tarball: the first deploy installed the package and created its resources. Another diff installed nothing and found no changes. TypeScript read the package's types through `.sst/tsconfig.json`. The same package in a `package.json` was refused. A version whose peer dependencies the app can't meet was stopped by the deploy's check, with bun 1.4.2. Going back installed the first version. Taking the package out of the config took it out of the platform.
 
    **Found while building it: SST's bun hung.** bun 1.2.1, which SST pinned, ran at full CPU without end installing a package from a `file:` tarball in `.sst/platform`. It did every time the package's peer dependencies conflicted with what the platform installs, here `@pulumi/random` `^5` against 4.21.2, and once without a conflict. A command just stops there, before the deploy's check could say what's wrong. On its own, with only the two packages, bun 1.2.1 hung too, with `--omit peer` as well. bun 1.4.2 installs the same in a second and warns about the peer. npm stops with `ERESOLVE`. A provider with a conflicting peer can hit the same, on 4.x too. So SST pins bun 1.4.2 now, released 2026-09-05. SST runs bun only to install `.sst/platform`. Checked, on an app with local state, random, tls, a file using the globals and a package: deployed with bun 1.2.1, the CLI with 1.4.2 installed the platform again and `sst diff` showed no changes. Every package both installed was at the same version, the providers included. Only where a few copies of `@types/node` are nested differed. The lockfile stayed `bun.lockb`.
 
-8. **A provider version in another major version is refused.** Take the rule from `64fe7d481`: SST's components are written for one major version of each provider they use (before 1.0, one minor version). `sst install` refuses a version in the config outside it, and says which to use. A provider SST's components don't use isn't checked. Whether an older version within the major version is allowed is open question 2. Checked: Go tests, and an app setting `aws: "6.0.0"` stopping at install with the message.
+8. **A provider version in another major version is refused.** Take the rule from `64fe7d481`: SST's components are written for one major version of each provider they use (before 1.0, one minor version). `sst install` refuses a version in the config outside it, and says which to use. A provider SST's components don't use isn't checked. An older version is refused already, by 4.x's check (open question 2). Checked: Go tests, and an app setting `aws: "6.0.0"` stopping at install with the message.
 
 9. **Run it.**
    - Locally, with state in a local file: an app without a `package.json`, and an npm and a pnpm app, each using a package. After each step that changes the build (2, 4 and 7), `sst diff` shows no changes on an app deployed before it.
@@ -170,8 +176,8 @@ Steps 1 and 2 stand alone, and could go to `v5` first. Steps 3 and 4 need step 1
 
 ## Open questions
 
-1. **The config field for packages.** `packages` in `app()`, beside `providers`? Is a version required, as it is for a provider other than aws and cloudflare?
-2. **An older provider version, within SST's major version.** 4.x installs it, and SST's components may use something only a newer one has. Allow it, warn, or refuse?
+1. ~~**The config field for packages.**~~ Decided 2026-10-12: `packages` in `app()`, beside `providers`, with a version required (step 7).
+2. ~~**An older provider version, within SST's major version.**~~ Already refused: 4.x stops with "SST needs 7.48.0 or higher" (`ErrProviderVersionTooLow`). Step 8 adds only the upper bound.
 3. **A provider a package needs that the app hasn't added.** The deploy says to run `sst add` (open question 2 in [v5-sharing.md](v5-sharing.md)). Should `sst install` add it instead? A provider's settings, like its region, are in the config's `providers`, so adding one is a change to the config.
 4. **The platform's runtime dependencies in production installs.** An app that lists `sst` in `dependencies`, for `sst/resource`, also gets esbuild, archiver and glob after step 5. Every install of `sst` already brings the CLI's binary, about 96 MB, so they add little. A separate package for authors would keep them out, at the cost of a second package to publish.
 
@@ -182,6 +188,7 @@ Steps 1 and 2 stand alone, and could go to `v5` first. Steps 3 and 4 need step 1
 - **A JavaScript app has SST's components twice on disk:** in `.sst/platform`, which the deploy uses, and in `node_modules/sst`, which nothing in the app uses. They're the same version when the CLI hands off to the app's `sst`.
 - **The CLI hands off to the app's `sst` only from `./node_modules/.bin/sst`.** In a monorepo where `sst` is installed at the root, the CLI on the path runs instead, as in 4.x.
 - **The limits of `.sst/tsconfig.json`** in [v5-sharing.md](v5-sharing.md) still apply to apps.
+- **A package listed in the config gets no globals.** The files in `.sst` aren't given them, and that's where it's installed. A package that imports what it uses, as the guide says to, doesn't need them.
 - **A package's repo needs `skipLibCheck`.** Without it, `tsc` finds 45 errors in SST's declarations: types from providers the repo doesn't install, like cloudflare's from `sst/components/aws`, and a `T` that `cloudflare/ai.d.ts` doesn't declare.
 - **A package that uses a group installs all of that group's providers,** `@pulumi/command` and the rest for `sst/components/aws`, though it only uses aws. Without one, the import fails with Node's own message, not SST's.
 - **Nothing can be published** until the release path for 5.x is settled ("Not done yet" 1 in [v5-sharing.md](v5-sharing.md)).

@@ -217,6 +217,28 @@ export interface App {
    */
   providers?: Record<string, any>;
   /**
+   * The component packages this app uses, by name and version, for an app without a
+   * `package.json`. `sst install` installs them with the providers, and `run()` imports
+   * them as it would any package.
+   *
+   * ```ts
+   * {
+   *   packages: {
+   *     "@acme/email-domain": "1.2.0"
+   *   }
+   * }
+   * ```
+   *
+   * The providers a package needs go in `providers`. An app with a `package.json` installs
+   * its packages there instead, and a package can't be in both.
+   *
+   * A command like `sst deploy` installs them when they've changed, as `sst install` does.
+   *
+   * For TypeScript to read a package's types, add a `tsconfig.json` that extends
+   * `.sst/tsconfig.json`, which `sst install` writes.
+   */
+  packages?: Record<string, string>;
+  /**
    * The provider SST will use to store the state for your app. The state keeps track of all your resources and secrets. The state is generated locally and backed up in your cloud provider.
    *
    *

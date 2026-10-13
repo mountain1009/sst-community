@@ -51,6 +51,25 @@ func TestWriteTsconfig(t *testing.T) {
 	}, config.CompilerOptions.Paths)
 }
 
+// A package the config lists is where `sst install` puts it, in the platform
+func TestWriteTsconfigWithPackages(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".sst", "platform"), 0755))
+	p := &Project{root: dir, app: &App{Packages: map[string]string{"@acme/email": "1.2.0"}}}
+	require.NoError(t, p.writeTsconfig())
+
+	data, err := os.ReadFile(filepath.Join(dir, ".sst", "tsconfig.json"))
+	require.NoError(t, err)
+	var config struct {
+		CompilerOptions struct {
+			Paths map[string][]string `json:"paths"`
+		} `json:"compilerOptions"`
+	}
+	require.NoError(t, json.Unmarshal(data, &config))
+	assert.Equal(t, []string{"./platform/node_modules/@acme/email"}, config.CompilerOptions.Paths["@acme/email"])
+	assert.Equal(t, []string{"./platform/node_modules/@acme/email/*"}, config.CompilerOptions.Paths["@acme/email/*"])
+}
+
 // A CLI built without the compiled types points at the platform's source.
 func TestPlatformTypesWithoutCompiledTypes(t *testing.T) {
 	assert.Equal(t, "src", platformTypes(t.TempDir()))

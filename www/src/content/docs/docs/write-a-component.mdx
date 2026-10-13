@@ -617,6 +617,19 @@ const email = new EmailDomain("Mail", {
 });
 ```
 
+An app without a `package.json` lists the package in its config instead, under `packages`. A command like `sst deploy` installs it with the providers.
+
+```ts title="sst.config.ts" {6}
+app(input) {
+  return {
+    name: "my-app",
+    home: "aws",
+    providers: { cloudflare: "6.15.0" },
+    packages: { "@acme/email-domain": "1.2.0" },
+  };
+},
+```
+
 For TypeScript to read the package's types, the app's `tsconfig.json` extends `.sst/tsconfig.json`, which `sst install` writes. It says where the app's SST and providers are, in `.sst/platform`.
 
 ```json title="tsconfig.json" {2}

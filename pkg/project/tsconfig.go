@@ -47,6 +47,14 @@ func (p *Project) writeTsconfig() error {
 	for module, file := range platformModuleFiles() {
 		paths[module] = []string{types + "/components/" + file}
 	}
+	// The packages the config lists, which are installed with the providers
+	if p.app != nil {
+		for name := range p.app.Packages {
+			dir := "./platform/node_modules/" + name
+			paths[name] = []string{dir}
+			paths[name+"/*"] = []string{dir + "/*"}
+		}
+	}
 	for _, scope := range []string{"@pulumi", "@pulumiverse", "@sst-provider"} {
 		entries, err := os.ReadDir(filepath.Join(platformDir, "node_modules", scope))
 		if err != nil {

@@ -27,6 +27,12 @@ type EvalOptions struct {
 	Platform map[string]string
 }
 
+// Marks the resolve that checks whether a package can be found when `app()`
+// is read, so it isn't checked again
+type notFoundCheck struct{}
+
+var notFound = notFoundCheck{}
+
 // The modules an app or a component package imports from the app's own
 // platform, rather than from its node_modules: what SST's components share,
 // and the components of each provider
@@ -173,6 +179,34 @@ const __dirname = topLevelFileUrlToPath(new topLevelURL(".", import.meta.url))
 						contents := fmt.Sprintf(
 							"module.exports = new Proxy({}, { get(_, key) { if (key === \"__esModule\" || typeof key === \"symbol\") return undefined; throw new Error(%q); } });",
 							args.Path+" is only loaded in run()",
+						)
+						return esbuild.OnLoadResult{Contents: &contents, Loader: esbuild.LoaderJS}, nil
+					})
+					// A package `sst install` installs, like one the config
+					// lists under `packages`, isn't there before the first
+					// install. So when `app()` is read, a package that can't
+					// be found is left out too. A build that runs the app
+					// still fails on it.
+					build.OnResolve(esbuild.OnResolveOptions{Filter: `^[^./]`}, func(args esbuild.OnResolveArgs) (esbuild.OnResolveResult, error) {
+						if runsApp || args.PluginData == notFound {
+							return esbuild.OnResolveResult{}, nil
+						}
+						resolved := build.Resolve(args.Path, esbuild.ResolveOptions{
+							Importer:   args.Importer,
+							Namespace:  args.Namespace,
+							ResolveDir: args.ResolveDir,
+							Kind:       args.Kind,
+							PluginData: notFound,
+						})
+						if len(resolved.Errors) == 0 {
+							return esbuild.OnResolveResult{}, nil
+						}
+						return esbuild.OnResolveResult{Path: args.Path, Namespace: "not-found"}, nil
+					})
+					build.OnLoad(esbuild.OnLoadOptions{Filter: ".*", Namespace: "not-found"}, func(args esbuild.OnLoadArgs) (esbuild.OnLoadResult, error) {
+						contents := fmt.Sprintf(
+							"module.exports = new Proxy({}, { get(_, key) { if (key === \"__esModule\" || typeof key === \"symbol\") return undefined; throw new Error(%q); } });",
+							args.Path+" isn't installed yet. A package that `sst install` installs, like one under `packages`, is only loaded in run()",
 						)
 						return esbuild.OnLoadResult{Contents: &contents, Loader: esbuild.LoaderJS}, nil
 					})

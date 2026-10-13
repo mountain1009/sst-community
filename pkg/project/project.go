@@ -32,6 +32,7 @@ type App struct {
 	Stage     string                 `json:"stage"`
 	Removal   string                 `json:"removal"`
 	Providers map[string]interface{} `json:"providers"`
+	Packages  map[string]string      `json:"packages"` // installed in the platform, for an app without a package.json
 	Home      string                 `json:"home"`
 	Version   string                 `json:"version"`
 	Protect   bool                   `json:"protect"`
@@ -336,6 +337,10 @@ console.log("~j" + JSON.stringify(await mod.app({
 			}
 
 			if err := validateState(proj.app.State); err != nil {
+				return nil, err
+			}
+
+			if err := proj.checkConfigPackages(); err != nil {
 				return nil, err
 			}
 

@@ -123,3 +123,84 @@ func TestComponentPackagesImportingAGroup(t *testing.T) {
 	require.Len(t, found, 1)
 	assert.True(t, strings.HasSuffix(filepath.ToSlash(found[0]), "node_modules/@acme/uploads"), found[0])
 }
+
+// The packages a config lists are installed in the platform, so each one has
+// to be a package nothing else installs there
+func TestCheckConfigPackages(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"devDependencies":{"@acme/both":"1.0.0"}}`), 0644))
+	check := func(packages map[string]string) error {
+		p := &Project{root: dir, app: &App{Packages: packages}}
+		return p.checkConfigPackages()
+	}
+	assert.NoError(t, check(nil))
+	assert.NoError(t, check(map[string]string{"@acme/email": "1.2.0", "email-domain": "^2.0.0"}))
+	for packages, message := range map[string]string{
+		`{"@acme/email":""}`:         `The package "@acme/email" is missing a version.`,
+		`{"@pulumi/pulumi":"3.0.0"}`: `SST installs "@pulumi/pulumi" itself. Remove it from packages.`,
+		`{"@pulumi/gcp":"8.0.0"}`:    `"@pulumi/gcp" is a provider. Add it to providers instead, with "sst add".`,
+		`{"esbuild":"0.21.5"}`:       `SST installs "esbuild" itself. Remove it from packages.`,
+		`{"@acme/both":"1.0.0"}`:     `"@acme/both" is in both package.json and the packages in sst.config.ts. Keep it in one of them.`,
+	} {
+		var parsed map[string]string
+		require.NoError(t, json.Unmarshal([]byte(packages), &parsed))
+		err := check(parsed)
+		require.Error(t, err, packages)
+		assert.Equal(t, message, err.Error())
+	}
+}
+
+// A package the config lists is installed again when it isn't in the
+// platform, or the config has another version of it, or no longer lists it.
+// What was installed is what the last install that succeeded recorded.
+func TestPackagesNeedInstall(t *testing.T) {
+	dir := t.TempDir()
+	platform := filepath.Join(dir, ".sst", "platform")
+	require.NoError(t, os.MkdirAll(platform, 0755))
+	p := &Project{root: dir, app: &App{}}
+	assert.False(t, p.packagesNeedInstall(), "none, and none installed")
+
+	p.app.Packages = map[string]string{"@acme/email": "1.2.0"}
+	assert.True(t, p.packagesNeedInstall(), "never installed")
+	require.NoError(t, p.writeInstalledPackages())
+	assert.True(t, p.packagesNeedInstall(), "recorded, but not in node_modules")
+
+	installed := filepath.Join(platform, "node_modules", "@acme", "email")
+	require.NoError(t, os.MkdirAll(installed, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(installed, "package.json"), []byte(`{"name":"@acme/email"}`), 0644))
+	assert.False(t, p.packagesNeedInstall())
+
+	p.app.Packages = map[string]string{"@acme/email": "1.3.0"}
+	assert.True(t, p.packagesNeedInstall(), "another version")
+	p.app.Packages = map[string]string{"@acme/email": "1.2.0", "@acme/other": "1.0.0"}
+	assert.True(t, p.packagesNeedInstall(), "a package added")
+	p.app.Packages = nil
+	assert.True(t, p.packagesNeedInstall(), "a package removed")
+	require.NoError(t, p.writeInstalledPackages())
+	assert.False(t, p.packagesNeedInstall(), "none, after an install")
+}
+
+// The platform's package.json gets the packages the config lists, and loses
+// one the config no longer lists, which is taken out of node_modules too.
+// SST's own dependencies stay.
+func TestWritePackageJsonWithPackages(t *testing.T) {
+	dir := t.TempDir()
+	platform := filepath.Join(dir, ".sst", "platform")
+	require.NoError(t, os.MkdirAll(platform, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(platform, "package.json"), []byte(`{"dependencies":{"esbuild":"0.21.5","@acme/old":"1.0.0"}}`), 0644))
+	old := filepath.Join(platform, "node_modules", "@acme", "old")
+	require.NoError(t, os.MkdirAll(old, 0755))
+	p := &Project{root: dir, app: &App{Packages: map[string]string{"@acme/old": "1.0.0"}}}
+	require.NoError(t, p.writeInstalledPackages())
+
+	p.app.Packages = map[string]string{"@acme/email": "1.2.0"}
+	require.NoError(t, p.writePackageJson())
+	data, err := os.ReadFile(filepath.Join(platform, "package.json"))
+	require.NoError(t, err)
+	var written js.PackageJson
+	require.NoError(t, json.Unmarshal(data, &written))
+	assert.Equal(t, "1.2.0", written.Dependencies["@acme/email"])
+	assert.Equal(t, "0.21.5", written.Dependencies["esbuild"])
+	assert.NotContains(t, written.Dependencies, "@acme/old")
+	assert.NoDirExists(t, old)
+}

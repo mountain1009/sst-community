@@ -36,6 +36,9 @@ func (p *Project) NeedsInstall() bool {
 	if len(p.app.Providers) != len(p.lock) {
 		return true
 	}
+	if p.packagesNeedInstall() {
+		return true
+	}
 	for _, entry := range p.lock {
 		match, ok := p.app.Providers[entry.Name]
 		if !ok {
@@ -72,6 +75,11 @@ func (p *Project) Install() error {
 	}
 
 	err = p.fetchDeps()
+	if err != nil {
+		return err
+	}
+
+	err = p.writeInstalledPackages()
 	if err != nil {
 		return err
 	}
@@ -120,6 +128,18 @@ func (p *Project) writePackageJson() error {
 		dependencies[entry.Package] = entry.Version
 	}
 	dependencies["@pulumi/pulumi"] = global.PULUMI_VERSION
+	// A package the config no longer lists is removed. Its folder too, which
+	// bun leaves, so the bundle can't still find it there.
+	for name := range p.installedPackages() {
+		if _, ok := p.app.Packages[name]; !ok {
+			delete(dependencies, name)
+			os.RemoveAll(filepath.Join(p.PathPlatformDir(), "node_modules", name))
+		}
+	}
+	for name, version := range p.app.Packages {
+		slog.Info("adding package", "name", name, "version", version)
+		dependencies[name] = version
+	}
 
 	dataToWrite, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {

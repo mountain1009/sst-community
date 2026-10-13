@@ -221,3 +221,52 @@ func TestPlatformModulesAreTheGroups(t *testing.T) {
 	require.Greater(t, len(expected), 1, "groups.ts lists the groups")
 	assert.ElementsMatch(t, expected, js.PlatformModules)
 }
+
+// Before the first install, a package `sst install` installs, like one the
+// config lists under `packages`, can't be found. Reading `app()` leaves it out,
+// and says so if something uses it then. A build that runs the app still
+// fails on it.
+func TestBuildReadingAppBeforeInstall(t *testing.T) {
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{
+		"sst.config.ts": `
+export default $config({
+  app() {
+    return { name: "my-app" };
+  },
+  async run() {
+    await import("./infra");
+    await import("@acme/email");
+  },
+});
+`,
+		"infra.ts": `import { Uploads } from "@acme/uploads";
+export const uploads = Uploads;
+`,
+		"used.ts": `import stages from "@acme/stages";
+export function read() {
+  try {
+    return stages.stage;
+  } catch (e) {
+    return e.message;
+  }
+}
+`,
+	})
+	out := buildAndRun(t, js.EvalOptions{
+		Dir:    dir,
+		Banner: `function $config(input) { return input }`,
+		Code:   "import mod from './sst.config.ts';\nimport { read } from './used.ts';\nconsole.log(JSON.stringify(await mod.app({})));\nconsole.log(read());",
+	})
+	assert.Equal(t, "{\"name\":\"my-app\"}\n@acme/stages isn't installed yet. A package that `sst install` installs, like one under `packages`, is only loaded in run()", out)
+
+	_, err := js.Build(js.EvalOptions{
+		Dir:     dir,
+		Globals: []js.Global{{Name: "sst", Module: filepath.Join(dir, "used.ts")}},
+		Banner:  `function $config(input) { return input }`,
+		Code:    "import mod from './sst.config.ts';\nconsole.log(typeof mod.run);",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `Could not resolve "@acme/uploads"`)
+	assert.Contains(t, err.Error(), `Could not resolve "@acme/email"`)
+}

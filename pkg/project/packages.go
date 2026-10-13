@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/sst/sst/v3/internal/util"
 	"github.com/sst/sst/v3/pkg/js"
+	"github.com/sst/sst/v3/platform"
 )
 
 // A component package says in its package.json, as peer dependencies, which
@@ -96,6 +98,83 @@ func packageDir(file string) string {
 		return ""
 	}
 	return dir
+}
+
+// The packages the config lists under `packages`, for an app without a
+// package.json. `sst install` puts them in the platform, next to the
+// providers, so each one has to be a package nothing else installs there.
+func (p *Project) checkConfigPackages() error {
+	if len(p.app.Packages) == 0 {
+		return nil
+	}
+	platformPkg, err := platform.PackageJson()
+	if err != nil {
+		return err
+	}
+	var app js.PackageJson
+	if data, err := os.ReadFile(filepath.Join(p.PathRoot(), "package.json")); err == nil {
+		json.Unmarshal(data, &app)
+	}
+	for _, name := range sortedKeys(p.app.Packages) {
+		_, inPlatform := platformPkg.Dependencies[name]
+		_, inApp := app.Dependencies[name]
+		_, inAppDev := app.DevDependencies[name]
+		switch {
+		case p.app.Packages[name] == "":
+			return util.NewReadableError(nil, fmt.Sprintf(`The package "%s" is missing a version.`, name))
+		case name == "@pulumi/pulumi":
+			return util.NewReadableError(nil, `SST installs "@pulumi/pulumi" itself. Remove it from packages.`)
+		case isProviderPackage(name):
+			return util.NewReadableError(nil, fmt.Sprintf(`"%s" is a provider. Add it to providers instead, with "sst add".`, name))
+		case inPlatform:
+			return util.NewReadableError(nil, fmt.Sprintf(`SST installs "%s" itself. Remove it from packages.`, name))
+		case inApp || inAppDev:
+			return util.NewReadableError(nil, fmt.Sprintf(`"%s" is in both package.json and the packages in sst.config.ts. Keep it in one of them.`, name))
+		}
+	}
+	return nil
+}
+
+// The packages the config listed at the last install that succeeded, as the
+// provider lock records the providers. The platform's package.json can't say:
+// it's written before the install, which can fail.
+func (p *Project) installedPackages() map[string]string {
+	installed := map[string]string{}
+	data, err := os.ReadFile(filepath.Join(p.PathPlatformDir(), "installed-packages.json"))
+	if err == nil {
+		json.Unmarshal(data, &installed)
+	}
+	return installed
+}
+
+func (p *Project) writeInstalledPackages() error {
+	packages := p.app.Packages
+	if packages == nil {
+		packages = map[string]string{}
+	}
+	data, err := json.MarshalIndent(packages, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(p.PathPlatformDir(), "installed-packages.json"), data, 0644)
+}
+
+// Whether the packages the config lists aren't the ones installed: one was
+// added, removed, or given another version, or isn't in the platform
+func (p *Project) packagesNeedInstall() bool {
+	installed := p.installedPackages()
+	if len(installed) != len(p.app.Packages) {
+		return true
+	}
+	for name, version := range p.app.Packages {
+		if installed[name] != version {
+			return true
+		}
+		if _, err := os.Stat(filepath.Join(p.PathPlatformDir(), "node_modules", name, "package.json")); err != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func isProviderPackage(name string) bool {
