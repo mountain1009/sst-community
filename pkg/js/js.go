@@ -193,7 +193,10 @@ const __dirname = topLevelFileUrlToPath(new topLevelURL(".", import.meta.url))
 							}
 							newContents := string(contents)
 							if !strings.Contains(args.Path, ".sst") {
-								newContents = globals + "\n" + newContents
+								// At the end, so the file's own lines keep their
+								// numbers in an error. Imports run before the rest
+								// of a file wherever they are.
+								newContents = newContents + "\n" + globals
 							}
 							return esbuild.OnLoadResult{
 								Contents: &newContents,

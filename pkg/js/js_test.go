@@ -167,3 +167,33 @@ export const bucket = component("acme:Bucket", { bucket: aws.s3.Bucket });
 	})
 	assert.Equal(t, `{"name":"my-app"}`, out)
 }
+
+// An error in a file that's given the globals is reported at its own line
+func TestBuildErrorLineInAFileWithGlobals(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is not installed")
+	}
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{
+		"sst.ts":   `export const name = "sst";`,
+		"aws.ts":   `export const name = "aws";`,
+		"infra.ts": "export function fail() {\n  throw new Error(sst.name + aws.name);\n}",
+	})
+	result, err := js.Build(js.EvalOptions{
+		Dir:     dir,
+		Globals: []js.Global{{Name: "sst", Module: filepath.Join(dir, "sst.ts")}, {Name: "aws", Module: filepath.Join(dir, "aws.ts")}},
+		Code:    "const { fail } = await import(\"./infra.ts\");\nfail();",
+	})
+	require.NoError(t, err)
+	defer js.Cleanup(result)
+	var bundle string
+	for _, file := range result.OutputFiles {
+		if strings.HasSuffix(file.Path, ".mjs") {
+			bundle = file.Path
+		}
+	}
+	out, _ := exec.Command(node, "--enable-source-maps", bundle).CombinedOutput()
+	assert.Contains(t, string(out), "Error: sstaws")
+	assert.Contains(t, string(out), "infra.ts:2:", string(out))
+}
