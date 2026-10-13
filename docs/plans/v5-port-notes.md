@@ -72,7 +72,8 @@ Function parts in other components are declared `deferred(Function)` and created
 
 ## Redis
 
-- **Parts:** `authToken`, `secret`, `secretVersion`, `subnetGroup`, `parameterGroup`, `cluster`.
+- **Parts:** `authToken`, `secret`, `secretVersion`, `subnetGroup`, `parameterGroup`, `cluster`, and for a serverless cache `serverlessCache`, `user`, `userGroup`. All are `optional`: a cluster has the first six, a serverless cache the last three and `authToken` unless `password: false`.
+- **`serverless`** came from `main`'s #91 (2026-10-12), after the port. It's plain, since it decides what's created. Its limits can be outputs, and are checked once known, as in 4.x.
 - The cluster is created directly, with the cluster-mode settings as outputs. Nothing is deferred.
 - In `sst dev` with `dev` set, nothing is deployed: `runsLocally()`, and the getters read from one `connection` object.
 - `get` is `existing: { cluster }`.

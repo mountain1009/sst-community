@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { mockPulumi } from "../../helpers/graph";
 
 const CLUSTER = "aws:elasticache/replicationGroup:ReplicationGroup";
+const SERVERLESS = "aws:elasticache/serverlessCache:ServerlessCache";
 
 const pulumi = mockPulumi({
   state: (args) =>
@@ -15,7 +16,9 @@ const pulumi = mockPulumi({
             "sst:ref:secret": "secret-id",
           },
         }
-      : {},
+      : args.type === SERVERLESS
+        ? { endpoints: [{ address: "serverless.cache.example.com", port: 6379 }] }
+        : {},
   call: (args) =>
     args.token === "aws:secretsmanager/getSecretVersion:getSecretVersion"
       ? { secretString: JSON.stringify({ authToken: "stored-token" }) }
@@ -106,6 +109,38 @@ describe("Redis", () => {
         "a cluster referenced with get": (Redis, opts) => {
           Redis.get("MyRedis", "app-dev-myredis", opts);
         },
+        serverless: (Redis, opts) => {
+          new Redis("MyRedis", { vpc, serverless: true }, opts);
+        },
+        "serverless valkey with limits": (Redis, opts) => {
+          new Redis(
+            "MyRedis",
+            {
+              vpc,
+              engine: "valkey",
+              version: "8.0",
+              serverless: {
+                storage: { minimum: "2 GB", maximum: "100 GB" },
+                ecpuPerSecond: { minimum: 1000, maximum: 50000 },
+              },
+            },
+            opts,
+          );
+        },
+        "serverless without a password": (Redis, opts) => {
+          new Redis("MyRedis", { vpc, serverless: { password: false } }, opts);
+        },
+        "serverless with a transform": (Redis, opts) => {
+          new Redis(
+            "MyRedis",
+            {
+              vpc,
+              serverless: true,
+              transform: { serverlessCache: { description: "custom" } },
+            },
+            opts,
+          );
+        },
       },
     });
 
@@ -177,9 +212,12 @@ describe("Redis", () => {
       "subnetGroup",
       "parameterGroup",
       "cluster",
+      "serverlessCache",
+      "user",
+      "userGroup",
     ]);
-    expect(redis.nodes.secret.constructor.name).toBe("Secret");
-    expect(redis.nodes.cluster.constructor.name).toBe("ReplicationGroup");
+    expect(redis.nodes.secret?.constructor.name).toBe("Secret");
+    expect(redis.nodes.cluster?.constructor.name).toBe("ReplicationGroup");
   });
 
   it("lets the secret be transformed, which Redis doesn't", async () => {
@@ -215,5 +253,76 @@ describe("Redis", () => {
       "username",
       "password",
     ]);
+  });
+
+  describe("serverless", () => {
+    it("creates a cache with a password in place of the cluster", async () => {
+      const redis = new Redis("MyRedis", { vpc, serverless: true });
+      await pulumi.settle();
+
+      expect(redis.nodes.cluster).toBeUndefined();
+      expect(redis.nodes.subnetGroup).toBeUndefined();
+      expect(redis.nodes.serverlessCache?.constructor.name).toBe("ServerlessCache");
+      expect(redis.nodes.user?.constructor.name).toBe("User");
+      const cache = pulumi.resources.find((r) => r.type === SERVERLESS)!;
+      expect(cache.inputs.majorEngineVersion).toBe("7");
+      expect(cache.inputs.cacheUsageLimits).toEqual({
+        dataStorage: { maximum: 10, unit: "GB" },
+        ecpuPerSeconds: [{ maximum: 5000 }],
+      });
+      expect(
+        await pulumi.resolve([redis.host, redis.port, redis.username]),
+      ).toEqual(["serverless.cache.example.com", 6379, "default"]);
+      expect(Object.keys((redis as any).getSSTLink().properties)).toEqual([
+        "host",
+        "port",
+        "username",
+        "password",
+      ]);
+    });
+
+    it("links no password with password: false", async () => {
+      const redis = new Redis("MyRedis", {
+        vpc,
+        serverless: { password: false },
+      });
+      await pulumi.settle();
+
+      expect(redis.password).toBeUndefined();
+      expect(redis.nodes.authToken).toBeUndefined();
+      expect(redis.nodes.userGroup).toBeUndefined();
+      const cache = pulumi.resources.find((r) => r.type === SERVERLESS)!;
+      expect(cache.inputs.userGroupId).toBeUndefined();
+      expect(Object.keys((redis as any).getSSTLink().properties)).toEqual([
+        "host",
+        "port",
+        "username",
+      ]);
+    });
+
+    it("takes limits that are outputs, in whole GB", async () => {
+      const { output } = await import("@pulumi/pulumi");
+      new Redis("MyRedis", {
+        vpc,
+        serverless: {
+          storage: output({ maximum: output("20.5 GB" as const) }),
+          ecpuPerSecond: { maximum: output(8000) },
+        },
+      });
+      await pulumi.settle();
+
+      const cache = pulumi.resources.find((r) => r.type === SERVERLESS)!;
+      expect(cache.inputs.cacheUsageLimits).toEqual({
+        dataStorage: { maximum: 21, unit: "GB" },
+        ecpuPerSeconds: [{ maximum: 8000 }],
+      });
+    });
+
+    it("needs serverless as a plain value", () => {
+      const { output } = require("@pulumi/pulumi");
+      expect(
+        () => new Redis("MyRedis", { vpc, serverless: output(true) as any }),
+      ).toThrow(/The "serverless" of the "MyRedis" Redis has to be a plain value/);
+    });
   });
 });

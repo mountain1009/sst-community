@@ -8,39 +8,53 @@ import {
 } from "@pulumi/pulumi";
 import { RandomPassword } from "@pulumi/random";
 import { elasticache, secretsmanager } from "@pulumi/aws";
-import { V5Args, component } from "../../parts-component";
-import { ifSet, withDefault } from "../../args";
+import { V5Args, component, optional } from "../../parts-component";
+import { ifSet, plain, withDefault } from "../../args";
 import { Input } from "../../input";
 import { VisibleError } from "../../error";
+import { toGBs } from "../../size";
 import { DevCommand } from "../../experimental/dev-command";
 import { type TakesVpc, isVpc } from "../helpers/vpc";
 import type { RedisArgs as OriginalRedisArgs } from "../redis";
 
 const parts = {
   /**
-   * The random password clients authenticate with.
+   * The random password clients authenticate with. A serverless cache with
+   * `password: false` has none.
    */
-  authToken: RandomPassword,
+  authToken: optional(RandomPassword),
   /**
-   * The Secrets Manager secret that stores the auth token.
+   * The Secrets Manager secret that stores the auth token of a cluster.
    */
-  secret: secretsmanager.Secret,
+  secret: optional(secretsmanager.Secret),
   /**
    * The version of the secret holding the current auth token.
    */
-  secretVersion: secretsmanager.SecretVersion,
+  secretVersion: optional(secretsmanager.SecretVersion),
   /**
-   * The ElastiCache subnet group.
+   * The ElastiCache subnet group of a cluster.
    */
-  subnetGroup: elasticache.SubnetGroup,
+  subnetGroup: optional(elasticache.SubnetGroup),
   /**
-   * The ElastiCache parameter group.
+   * The ElastiCache parameter group of a cluster.
    */
-  parameterGroup: elasticache.ParameterGroup,
+  parameterGroup: optional(elasticache.ParameterGroup),
   /**
-   * The ElastiCache replication group.
+   * The ElastiCache replication group. There's none when `serverless` is set.
    */
-  cluster: elasticache.ReplicationGroup,
+  cluster: optional(elasticache.ReplicationGroup),
+  /**
+   * The ElastiCache serverless cache, when `serverless` is set.
+   */
+  serverlessCache: optional(elasticache.ServerlessCache),
+  /**
+   * The `default` user of a serverless cache, which has the password.
+   */
+  user: optional(elasticache.User),
+  /**
+   * The user group a serverless cache takes its passwords from.
+   */
+  userGroup: optional(elasticache.UserGroup),
 };
 
 export interface RedisArgs
@@ -52,7 +66,8 @@ interface Connection {
   host: Output<string>;
   port: Output<number>;
   username: Output<string>;
-  password: Output<string>;
+  /** A serverless cache with `password: false` has none. */
+  password?: Output<string>;
 }
 
 /**
@@ -72,10 +87,25 @@ interface Connection {
  * const redis = new sst.aws.v5.Redis("MyRedis", { vpc });
  * ```
  *
+ * #### Create a serverless Redis
+ *
+ * A serverless cache scales with how much it's used. It connects with the same
+ * `username` and `password` as a cluster.
+ *
+ * ```ts title="sst.config.ts"
+ * const redis = new sst.aws.v5.Redis("MyRedis", {
+ *   vpc,
+ *   serverless: {
+ *     storage: { maximum: "100 GB" },
+ *     ecpuPerSecond: { maximum: 50000 }
+ *   }
+ * });
+ * ```
+ *
  * #### Switch from `sst.aws.Redis`
  *
- * Change `sst.aws.Redis` to `sst.aws.v5.Redis` and keep the name. The cluster you've
- * deployed is kept.
+ * Change `sst.aws.Redis` to `sst.aws.v5.Redis` and keep the name. The cluster or
+ * serverless cache you've deployed is kept.
  *
  * ```ts title="sst.config.ts" del={1} ins={2}
  * const redis = new sst.aws.Redis("MyRedis", { vpc });
@@ -139,6 +169,22 @@ export class Redis extends component("sst:aws:Redis", parts) {
     const version = all([engine, args.version]).apply(
       ([engine, v]) => v ?? (engine === "redis" ? "7.1" : "7.2"),
     );
+    const vpc = isVpc(args.vpc)
+      ? output({
+          subnets: args.vpc.privateSubnets,
+          securityGroups: args.vpc.securityGroups,
+        })
+      : output(args.vpc);
+
+    const serverless = plain(
+      args.serverless,
+      `The "serverless" of the "${name}" Redis`,
+    );
+    if (serverless) {
+      this.connection = createServerless(serverless === true ? {} : serverless);
+      return;
+    }
+
     const instance = withDefault(args.instance, "t4g.micro");
     const clustered = all([args.cluster, args.nodes]).apply(([v, nodes]) => {
       if (v === false) return undefined;
@@ -146,12 +192,6 @@ export class Redis extends component("sst:aws:Redis", parts) {
       if (v === undefined) return { nodes: nodes || 1 };
       return v;
     });
-    const vpc = isVpc(args.vpc)
-      ? output({
-          subnets: args.vpc.privateSubnets,
-          securityGroups: args.vpc.securityGroups,
-        })
-      : output(args.vpc);
 
     const authToken = this.part("authToken", {
       length: 32,
@@ -236,6 +276,83 @@ export class Redis extends component("sst:aws:Redis", parts) {
     });
     this.connection = connectTo(cluster, authToken);
 
+    // A serverless cache in place of the cluster, with a password by default.
+    // It takes the password from a user group, which needs a user named
+    // "default".
+    function createServerless(
+      options: Exclude<NonNullable<RedisArgs["serverless"]>, boolean>,
+    ): Connection {
+      const password =
+        (options.password ?? true)
+          ? self.part("authToken", {
+              length: 32,
+              special: true,
+              overrideSpecial: "!&#$^<>-",
+            }).result
+          : undefined;
+      const userGroup = password
+        ? self.part("userGroup", {
+            // Named by SST: an empty id is filled in from the part's name
+            userGroupId: "",
+            engine,
+            userIds: [
+              self.part("user", {
+                userId: "",
+                userName: "default",
+                engine,
+                accessString: "on ~* +@all",
+                authenticationMode: { type: "password", passwords: [password] },
+              }).userId,
+            ],
+          })
+        : undefined;
+
+      const limits = serverlessLimits(name, options);
+      const cache = self.part("serverlessCache", {
+        description: "Managed by SST",
+        engine,
+        majorEngineVersion: version.apply((v) => {
+          const major = v.split(".")[0];
+          if (parseInt(major) < 7)
+            throw new VisibleError(
+              `In the Redis component "${name}", \`serverless\` needs version 7 or later, but \`version\` is "${v}".`,
+            );
+          return major;
+        }),
+        cacheUsageLimits: all([limits.storage, limits.ecpuPerSecond]).apply(
+          ([storage, ecpu]) => ({
+            dataStorage: {
+              minimum: storage.minimum,
+              maximum: storage.maximum,
+              unit: "GB",
+            },
+            ecpuPerSeconds: [{ minimum: ecpu.minimum, maximum: ecpu.maximum }],
+          }),
+        ),
+        securityGroupIds: vpc.securityGroups,
+        subnetIds: vpc.subnets,
+        userGroupId: userGroup?.userGroupId,
+        tags: { "sst:component-version": "2" },
+      });
+
+      return {
+        clusterId: cache.id,
+        username: output("default"),
+        password,
+        host: cache.endpoints.apply((endpoints) => {
+          const address = endpoints?.[0]?.address;
+          if (!address)
+            throw new VisibleError(
+              "The serverless Redis cache has no endpoint address yet.",
+            );
+          return address;
+        }),
+        port: cache.endpoints.apply(
+          (endpoints) => endpoints?.[0]?.port ?? 6379,
+        ),
+      };
+    }
+
     function connectTo(
       cluster: elasticache.ReplicationGroup,
       authToken: Output<string>,
@@ -298,7 +415,8 @@ Listening on "${local.host}:${local.port}"...`,
   }
 
   /**
-   * The ID of the Redis cluster.
+   * The ID of the Redis cluster, or of the serverless cache when `serverless` is set.
+   * `Redis.get` only works with the ID of a cluster.
    */
   public get clusterId() {
     return this.connection.clusterId;
@@ -312,9 +430,10 @@ Listening on "${local.host}:${local.port}"...`,
   }
 
   /**
-   * The password to connect to the Redis cluster.
+   * The password to connect to the Redis cluster. This is `undefined` for a serverless
+   * cache with `password: false`.
    */
-  public get password() {
+  public get password(): Output<string> | undefined {
     return this.connection.password;
   }
 
@@ -334,7 +453,7 @@ Listening on "${local.host}:${local.port}"...`,
 
   /**
    * Linking a cluster gives the linked resource its host, port, username and
-   * password.
+   * password, if it has one.
    */
   public link() {
     return {
@@ -342,7 +461,7 @@ Listening on "${local.host}:${local.port}"...`,
         host: this.host,
         port: this.port,
         username: this.username,
-        password: this.password,
+        ...(this.password ? { password: this.password } : {}),
       },
     };
   }
@@ -375,4 +494,57 @@ Listening on "${local.host}:${local.port}"...`,
       opts,
     );
   }
+}
+
+/**
+ * The usage limits of a serverless cache, checked: storage in whole GB, 10 at
+ * most by default, and ECPUs per second, 5,000 at most by default. They can be
+ * outputs, so they're read once known.
+ */
+function serverlessLimits(
+  name: string,
+  options: Exclude<NonNullable<RedisArgs["serverless"]>, boolean>,
+) {
+  return {
+    storage: output(options.storage)
+      .apply((v) => all([v?.minimum, v?.maximum]))
+      .apply(([min, max]) => {
+        const minimum = min ? Math.ceil(toGBs(min)) : undefined;
+        const maximum = max ? Math.ceil(toGBs(max)) : 10;
+        checkRange(name, "storage", "GB", minimum, maximum, !max);
+        return { minimum, maximum };
+      }),
+    ecpuPerSecond: output(options.ecpuPerSecond)
+      .apply((v) => all([v?.minimum, v?.maximum]))
+      .apply(([min, max]) => {
+        const minimum = min;
+        const maximum = max ?? 5000;
+        checkRange(name, "ecpuPerSecond", "", minimum, maximum, max === undefined);
+        return { minimum, maximum };
+      }),
+  };
+}
+
+function checkRange(
+  name: string,
+  key: string,
+  unit: string,
+  minimum: number | undefined,
+  maximum: number,
+  maximumIsDefault: boolean,
+) {
+  const suffix = unit ? ` ${unit}` : "";
+  for (const [limit, value] of [
+    ["minimum", minimum],
+    ["maximum", maximum],
+  ] as const) {
+    if (value !== undefined && value < 1)
+      throw new VisibleError(
+        `In the Redis component "${name}", \`serverless.${key}.${limit}\` has to be at least 1${suffix}.`,
+      );
+  }
+  if (minimum !== undefined && minimum > maximum)
+    throw new VisibleError(
+      `In the Redis component "${name}", \`serverless.${key}.minimum\` (${minimum}${suffix}) is above \`serverless.${key}.maximum\` (${maximum}${suffix}${maximumIsDefault ? ", the default" : ""}). Set a \`maximum\` that is at least the \`minimum\`.`,
+    );
 }
