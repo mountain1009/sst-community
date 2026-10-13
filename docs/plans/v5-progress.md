@@ -231,6 +231,27 @@ The lab app, on a stage of its own, in the order the first run used: deployed wi
 - **A deployed role trusts only Lambda. In `sst dev`, the account root too.**
 - The stage was removed, and its passphrase, sourcemaps and state files deleted after. The lab's audit lists what it did before, and the tagging API a subnet and a security group that are gone.
 
+### An app's dev stage, to `sst5 dev` and back (2026-10-13)
+
+An app in daily use, on its owner's own stage, run every day in `sst dev` with a 4.x CLI (v4.15.2 with local patches). It uses 4.x components only: 47 functions, an HTTP API with two routes per domain, a REST API in front of SQS, a durable `Workflow`, a Lambda layer, Aurora and Cognito. It was diffed with `sst5 diff --dev`, run in `sst5 dev`, then run again with the 4.x CLI.
+
+- **Both deploys were clean**, in under a minute each, and more than 530 resources weren't touched either way.
+  - Going to `sst5` changed what switching CLIs should: every function's code moved to the `sst5` bridge zip, the workflow published a new version, and the providers moved up (aws 7.20.0 to 7.48.0, random, tls).
+  - Going back moved them down again. The downgrade, on state the newer provider had written, went through.
+- **About 300 calls ran through 20 functions under `sst5 dev`**, with no error from the CLI or the bridge.
+- **`sst diff` showed four route functions deleted, and the deploy updated them.**
+  - `functionBuilder` creates a route's function inside an `apply` on its args. When the args hold a value that's unknown until the deploy, Pulumi's preview skips the `apply`. The function is never registered, so it shows as a delete, and its permission as replaced.
+  - Here the unknowns were the ARN of a layer being replaced and a workflow's new version.
+  - This is 4.x's own behaviour, from upstream. v5's `functionPart` builds its function the same way (see the open question in `v5-components.md`).
+- **The layer was replaced, because of `sst-env.d.ts`.**
+  - Since `b8b333987` (on `main` too), the generated file ends with a newline. SST writes one in every folder with a `package.json`, and the layer zipped such a folder, so its hash changed.
+  - The file is written after the deploy, so the change lands one run late. The second run on the other CLI replaces the layer, in either direction.
+  - An app moving from upstream to the fork, with a layer or any archive of such a folder, gets one replacement.
+- **The 4.x CLI logged `function not found` while it deployed**, for functions called meanwhile: a schedule, a Cognito trigger, the API.
+  - Its dev server learns the functions when the deploy finishes, and the lines stopped then.
+  - The start-up message from the `sst5` bridge was read, so the two agree on that much.
+- Not called under `sst5 dev`: the four routes the diff showed as deleted, and the workflow.
+
 ## What the harness can and can't see
 
 It records what's registered with the engine and compares, between a 4.x component and its v5 port: each resource's address (through aliases, as Pulumi resolves them), inputs, deploy options, registered outputs, what a function is built from, and what depends on what.

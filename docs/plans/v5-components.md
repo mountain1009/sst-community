@@ -93,6 +93,9 @@ Before the sites, the docs generator needed to read arg types from helper files.
 - **`Mysql`'s default version, `8.0.40`, is no longer offered by RDS**, so a `Mysql` with no `version` can't be created, in 4.x or v5. The fix belongs on `main` too. Deployed databases ignore changes to the engine version, so a new default wouldn't touch them.
 - **A proxy credential's `username` is plain only because the secret is named after it.** The weakest case for the plain-args rule.
 - **Docs: a renamed function part's code is uploaded again** under its new name on switch. The function is updated in place; the docs only mention the description.
+- **`functionPart` creates its function inside an `apply` on the whole definition**, as 4.x's `functionBuilder` does.
+  - When the args hold a value that's unknown until the deploy, `sst diff` shows the function as deleted. The deploy then updates it. A 4.x app showed this on 2026-10-13 (`v5-progress.md`).
+  - Telling a function, an ARN and args apart only needs the definition's outer value, so the args could stay unresolved and the preview right. Worth doing?
 - **A resource whose provider requires a name** (`cloudflare.R2Bucket`) has to be given `name: ""` for SST's naming to fill it in, as upstream's own Cloudflare components do. `this.part()` could do better.
 - **Two proposals not built:** test harness conveniences (`resource()`, `names()`, default AWS answers), and a report of what a 4.x component creates, to port from.
 - **Releasing 5.x.** `release.yml` publishes any pushed `vX.Y.Z` tag, from any branch, to npm as `latest`. That has to be sorted out before a 5.x tag is pushed. `check.yml` and `docs.yml` only run for `main`.
@@ -100,7 +103,7 @@ Before the sites, the docs generator needed to read arg types from helper files.
 
 ## Not verified
 
-- `sst dev` with a `Service` or `Task`, and on a stage deployed with 4.x. Live functions were run on 2026-10-01 and work.
+- `sst dev` with a `Service` or `Task`. Live functions were run on 2026-10-01 and work. On 2026-10-13, a 4.x app's dev stage went from a 4.x CLI to `sst5 dev` and back.
 - `get` and `existing` against real AWS, and a custom `provider`.
 - Creating the databases fresh with v5 (in the AWS test they were created by 4.x and taken over).
 - `CognitoUserPool` and `AppSync` custom domains, and a multi-region `Dsql`.
