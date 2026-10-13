@@ -41,7 +41,7 @@ describe("Component parts", () => {
         typeof parts
       >;
     };
-    return class Uploads extends component("acme:Uploads", parts) {
+    return class Uploads extends component("acme:index:Uploads", parts) {
       constructor(name: string, args: Args = {}, opts = {}) {
         super(name, args, opts);
         this.part("bucket", {
@@ -53,6 +53,14 @@ describe("Component parts", () => {
       }
     };
   }
+
+  it("needs a type with three parts", () => {
+    const parts = { bucket: aws.s3.Bucket };
+    expect(() => component("acme:Uploads", parts)).toThrow(
+      'The component type "acme:Uploads" needs three parts, as "<package>:<module>:<Name>", like "acme:index:Uploads".',
+    );
+    expect(() => component("acme:storage:Uploads", parts)).not.toThrow();
+  });
 
   it("names each part after the component and adds it to nodes", async () => {
     const Uploads = defineUploads();
@@ -139,7 +147,7 @@ describe("Component parts", () => {
 
   it("rejects a child resource that isn't a declared part", async () => {
     const parts = { bucket: aws.s3.Bucket };
-    class Leaky extends component("acme:Leaky", parts) {
+    class Leaky extends component("acme:index:Leaky", parts) {
       constructor(name: string) {
         super(name);
         this.part("bucket", {});
@@ -154,7 +162,7 @@ describe("Component parts", () => {
 
   it("says when a part is created a second time", async () => {
     const parts = { bucket: aws.s3.Bucket };
-    class Twice extends component("acme:Twice", parts) {
+    class Twice extends component("acme:index:Twice", parts) {
       constructor(name: string) {
         super(name);
         this.part("bucket", {});
@@ -177,7 +185,7 @@ describe("Component parts", () => {
       "../../src/components/aws/providers/kv-keys"
     );
     const parts = { keys: KvKeys };
-    class Routed extends component("acme:Routed", parts) {
+    class Routed extends component("acme:index:Routed", parts) {
       constructor(name: string, args: object) {
         super(name, args);
         this.part("keys", {
@@ -201,7 +209,7 @@ describe("Component parts", () => {
 
   it("adds a part to nodes when it's created later", async () => {
     const parts = { bucket: aws.s3.Bucket, grant: optional(aws.sqs.Queue) };
-    class Late extends component("acme:Late", parts) {
+    class Late extends component("acme:index:Late", parts) {
       constructor(name: string) {
         super(name);
         // Whether there's a grant depends on something only known on deploy
@@ -219,7 +227,7 @@ describe("Component parts", () => {
     // Stands in for an adapter, like the ones that create DNS records
     const adapter = (name: string, opts: object) =>
       new aws.sqs.Queue(`${name}Extra`, {}, opts);
-    class Delegating extends component("acme:Delegating", parts) {
+    class Delegating extends component("acme:index:Delegating", parts) {
       constructor(name: string) {
         super(name);
         this.part("bucket", {});
@@ -262,7 +270,7 @@ describe("Component parts", () => {
     type Args = import("../../src/components/parts-component").ComponentArgs<
       typeof parts
     >;
-    class Archive extends component("acme:Archive", parts) {
+    class Archive extends component("acme:index:Archive", parts) {
       constructor(name: string, args: Args) {
         super(name, args);
         this.part("bucket", { forceDestroy: true });
@@ -283,7 +291,7 @@ describe("Component parts", () => {
     const parts = {
       bucket: deferred(aws.s3.Bucket),
     };
-    class Later extends component("acme:Later", parts) {
+    class Later extends component("acme:index:Later", parts) {
       constructor(name: string) {
         super(name);
         // @ts-expect-error A deferred part isn't created with `part()`
@@ -303,7 +311,7 @@ describe("Component parts", () => {
 
   it("keeps a part it creates in sst dev in nodes, and explains the rest", async () => {
     const parts = { role: aws.iam.Role, bucket: aws.s3.Bucket };
-    class Worker extends component("acme:Worker", parts) {
+    class Worker extends component("acme:index:Worker", parts) {
       constructor(name: string) {
         super(name, {});
         // What runs on the user's machine in `sst dev` runs as this role
@@ -353,7 +361,7 @@ describe("Component parts", () => {
           typeof parts
         >;
       };
-      return class Network extends component("acme:Network", parts) {
+      return class Network extends component("acme:index:Network", parts) {
         constructor(name: string, args: Args) {
           super(name, args);
           const vpc = this.part("vpc", { cidrBlock: "10.0.0.0/16" });
@@ -422,7 +430,7 @@ describe("Component parts", () => {
 
     it("accepts one created without part(), matching it by name", async () => {
       const parts = { subnet: many(aws.ec2.Subnet) };
-      class Loose extends component("acme:Loose", parts) {
+      class Loose extends component("acme:index:Loose", parts) {
         constructor(name: string) {
           super(name);
           new aws.ec2.Subnet(
@@ -439,7 +447,7 @@ describe("Component parts", () => {
 
     it("takes any string as an id, and names it apart from similar ones", async () => {
       const parts = { subnet: many(aws.ec2.Subnet) };
-      class Zones extends component("acme:Zones", parts) {
+      class Zones extends component("acme:index:Zones", parts) {
         constructor(name: string, ids: string[]) {
           super(name);
           for (const id of ids) this.part("subnet", id, { vpcId: "vpc-1" });
@@ -464,7 +472,7 @@ describe("Component parts", () => {
 
     it("says when two ids would get the same name", () => {
       const parts = { subnet: many(aws.ec2.Subnet) };
-      class Alike extends component("acme:Alike", parts) {
+      class Alike extends component("acme:index:Alike", parts) {
         constructor(name: string) {
           super(name);
           this.part("subnet", "get-user", { vpcId: "vpc-1" });
@@ -478,7 +486,7 @@ describe("Component parts", () => {
 
     it("requires an id", () => {
       const parts = { subnet: many(aws.ec2.Subnet) };
-      class NoId extends component("acme:NoId", parts) {
+      class NoId extends component("acme:index:NoId", parts) {
         constructor(name: string) {
           super(name);
           this.part("subnet", "--", { vpcId: "vpc-1" });
@@ -498,7 +506,7 @@ describe("Component parts", () => {
       type Args = import("../../src/components/parts-component").ComponentArgs<
         typeof parts
       > & { deadLetters?: boolean; alarms?: string[] };
-      return class Inbox extends component("acme:Inbox", parts) {
+      return class Inbox extends component("acme:index:Inbox", parts) {
         constructor(name: string, args: Args = {}) {
           super(name, args);
           const dlq = args.deadLetters
@@ -561,7 +569,7 @@ describe("Component parts", () => {
         deadLetters: optional(aws.sqs.Queue),
         alarm: many(aws.cloudwatch.MetricAlarm),
       };
-      class Inbox extends component("acme:Inbox", parts) {
+      class Inbox extends component("acme:index:Inbox", parts) {
         constructor(
           name: string,
           args: import("../../src/components/parts-component").ComponentArgs<
@@ -655,7 +663,7 @@ describe("Component parts", () => {
       type Args = import("../../src/components/parts-component").ComponentArgs<
         typeof parts
       > & { nat?: boolean; zones?: string[] };
-      return class Network extends component("acme:Network", parts) {
+      return class Network extends component("acme:index:Network", parts) {
         constructor(name: string, args: Args = {}) {
           super(name, args);
           const vpc = this.part("vpc", { cidrBlock: "10.0.0.0/16" });
@@ -741,7 +749,7 @@ describe("Component parts", () => {
         group: named(aws.ec2.SecurityGroup, "Firewall"),
         subnet: named(many(aws.ec2.Subnet), "PublicSubnet"),
       };
-      class Loose extends component("acme:Loose", parts) {
+      class Loose extends component("acme:index:Loose", parts) {
         constructor(name: string) {
           super(name);
           new aws.ec2.SecurityGroup(`${name}Firewall`, {}, { parent: this });
@@ -799,7 +807,7 @@ describe("Component parts", () => {
         domain: string;
         zoneId: string;
       }
-      class EmailDomain extends component("acme:EmailDomain", parts) {
+      class EmailDomain extends component("acme:index:EmailDomain", parts) {
         constructor(name: string, args: EmailDomainArgs, opts?: object) {
           super(name, args, opts);
 
@@ -844,7 +852,7 @@ describe("Component parts", () => {
         P extends import("../../src/components/parts-component").Parts ? P : never
       >;
 
-    function defineUploads(type = "docs:Uploads") {
+    function defineUploads(type = "docs:index:Uploads") {
       const parts = {
         bucket: aws.s3.Bucket,
         audit: optional(aws.s3.Bucket),
@@ -981,7 +989,7 @@ describe("Component parts", () => {
     it("takes another component as a part", async () => {
       const { CronV2 } = await import("../../src/components/aws/v5/cron-v2");
       const parts = { table: aws.dynamodb.Table, cleanup: CronV2 };
-      class Sessions extends component("docs:Sessions", parts) {
+      class Sessions extends component("docs:index:Sessions", parts) {
         constructor(name: string, args: ComponentArgs<typeof parts> = {}) {
           super(name, args);
           this.part("table", { hashKey: "id" });
@@ -1006,12 +1014,12 @@ describe("Component parts", () => {
 
     it("keeps a renamed part's resource with named(), or with takeover()", async () => {
       const { takeover } = await import("../../src/components/takeover");
-      const Before = defineUploads("docs:Renamed");
+      const Before = defineUploads("docs:index:Renamed");
       // The same component with its bucket under the key `files`
       const define = <F extends import("../../src/components/parts-component").Parts[string]>(
         files: F,
       ) =>
-        class Uploads extends component("docs:Renamed", { files }) {
+        class Uploads extends component("docs:index:Renamed", { files }) {
           constructor(name: string) {
             super(name, {});
             (this as any).part("files", { forceDestroy: true });
@@ -1042,8 +1050,8 @@ describe("Component parts", () => {
 
     it("takes over from a component of another type, given that type", async () => {
       const { takeover } = await import("../../src/components/takeover");
-      const Before = defineUploads("docs:Uploads");
-      const After = defineUploads("docs:Files");
+      const Before = defineUploads("docs:index:Uploads");
+      const After = defineUploads("docs:index:Files");
 
       // Without it, a component of another type is another component
       expect(
@@ -1055,7 +1063,7 @@ describe("Component parts", () => {
         ).unclaimed.length,
       ).toBe(3);
 
-      takeover(After, { from: "docs:Uploads" });
+      takeover(After, { from: "docs:index:Uploads" });
       expect(
         await pulumi.takesOver(
           () => new Before("Docs", { teams: ["legal"] }),
@@ -1090,7 +1098,7 @@ describe("Component parts", () => {
 
     function defineStore() {
       const parts = { bucket: aws.s3.Bucket };
-      return class Store extends component("acme:Store", parts) {
+      return class Store extends component("acme:index:Store", parts) {
         constructor(name: string) {
           super(name);
           this.part("bucket", {});
@@ -1117,13 +1125,13 @@ describe("Component parts", () => {
 
       expect(Link.isLinkable(store)).toBe(true);
       const props = await pulumi.resolve(Link.getProperties([store]));
-      expect(props.Docs.type).toBe("acme.Store");
+      expect(props.Docs.type).toBe("acme.index.Store");
       expect(props.Docs.name).toMatch(/^app-test-docsbucket-/);
     });
 
     it("leaves a component without link() unlinkable", async () => {
       const parts = { bucket: aws.s3.Bucket };
-      class Plain extends component("acme:Plain", parts) {
+      class Plain extends component("acme:index:Plain", parts) {
         constructor(name: string) {
           super(name);
           this.part("bucket", {});
@@ -1156,7 +1164,7 @@ describe("Component parts", () => {
       const vars = await pulumi.resolve(Linkable.env([store]));
       await pulumi.settle();
 
-      expect(JSON.parse(vars.SST_RESOURCE_Docs).type).toBe("acme.Store");
+      expect(JSON.parse(vars.SST_RESOURCE_Docs).type).toBe("acme.index.Store");
     });
 
     it("lets a function link it the way it links any component", async () => {

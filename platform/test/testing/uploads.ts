@@ -13,7 +13,7 @@ interface UploadsArgs extends sst.ComponentArgs<typeof parts> {
   audit?: boolean;
 }
 
-export class Uploads extends sst.component("acme:Uploads", parts) {
+export class Uploads extends sst.component("acme:index:Uploads", parts) {
   constructor(
     name: string,
     args: UploadsArgs,
@@ -51,7 +51,7 @@ export class Uploads extends sst.component("acme:Uploads", parts) {
 // The same component after its bucket's key changed to `files`: once with
 // nothing to keep the bucket, and once declared with the name it had.
 const renamed = { files: aws.s3.Bucket };
-export class Renamed extends sst.component("acme:Uploads", renamed) {
+export class Renamed extends sst.component("acme:index:Uploads", renamed) {
   constructor(name: string) {
     super(name, {});
     this.part("files", { forceDestroy: true });
@@ -59,7 +59,7 @@ export class Renamed extends sst.component("acme:Uploads", renamed) {
 }
 
 const kept = { files: sst.named(aws.s3.Bucket, "Bucket") };
-export class Kept extends sst.component("acme:Uploads", kept) {
+export class Kept extends sst.component("acme:index:Uploads", kept) {
   constructor(name: string) {
     super(name, {});
     this.part("files", { forceDestroy: true });

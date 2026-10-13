@@ -55,7 +55,7 @@ describe("mock()", () => {
         tags: { team: "storage" },
       },
     });
-    expect(resource("DocsBucket").parent).toMatch(/acme:Uploads::Docs$/);
+    expect(resource("DocsBucket").parent).toMatch(/acme:index:Uploads::Docs$/);
     // An output is whatever the resource was given, or made from its name
     expect(await app.resolve(uploads.name)).toMatch(/^acme-dev-docsbucket-/);
     expect(await app.resolve(uploads.nodes.bucket.arn)).toBe(

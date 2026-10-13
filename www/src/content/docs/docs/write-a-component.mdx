@@ -35,7 +35,7 @@ interface UploadsArgs extends sst.ComponentArgs<typeof parts> {
   audit?: boolean;
 }
 
-class Uploads extends sst.component("acme:Uploads", parts) {
+class Uploads extends sst.component("acme:index:Uploads", parts) {
   constructor(name: string, args: UploadsArgs, opts?: $util.ComponentResourceOptions) {
     super(name, args, opts);
 
@@ -58,7 +58,7 @@ class Uploads extends sst.component("acme:Uploads", parts) {
 There are four things to it.
 
 1. Declare the `parts`: a key for each resource, and its class.
-2. Extend `sst.component(type, parts)`. The type is `<package>:<Name>`, and it's how your app's state knows the component.
+2. Extend `sst.component(type, parts)`. The type is `<package>:<module>:<Name>`, and it's how your app's state knows the component. Pulumi's tools expect the three parts, so use `index` as the module when there's no other.
 3. Call `super(name, args, opts)` with the args as they are.
 4. Create each resource with `this.part(key, args)`.
 
@@ -272,7 +272,7 @@ In the constructor, `this.part()` returns the existing resource in place of crea
 Define `link()` to make your component [linkable](/docs/linking/).
 
 ```ts title="sst.config.ts"
-class Uploads extends sst.component("acme:Uploads", parts) {
+class Uploads extends sst.component("acme:index:Uploads", parts) {
   // ...
 
   link() {
@@ -362,7 +362,7 @@ const parts = {
   // ...
 };
 
-export class Uploads extends sst.component("acme:Uploads", parts) {
+export class Uploads extends sst.component("acme:index:Uploads", parts) {
   // ...
 }
 ```
@@ -501,7 +501,7 @@ export interface EmailDomainArgs extends ComponentArgs<typeof parts> {
   zoneId: string;
 }
 
-export class EmailDomain extends component("acme:EmailDomain", parts) {
+export class EmailDomain extends component("acme:index:EmailDomain", parts) {
   constructor(name: string, args: EmailDomainArgs, opts?: ComponentResourceOptions) {
     super(name, args, opts);
 

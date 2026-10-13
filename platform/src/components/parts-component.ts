@@ -82,7 +82,7 @@ export interface LinkDefinition {
  *   retention?: number;
  * }
  *
- * class Uploads extends sst.component("acme:Uploads", parts) {
+ * class Uploads extends sst.component("acme:index:Uploads", parts) {
  *   constructor(name: string, args: UploadsArgs = {}) {
  *     super(name, args);
  *     this.part("bucket", { forceDestroy: true });
@@ -90,7 +90,8 @@ export interface LinkDefinition {
  * }
  * ```
  *
- * @param type The component's type, as `<package>:<Name>` or `<package>:<module>:<Name>`.
+ * @param type The component's type, as `<package>:<module>:<Name>`, like
+ * `acme:index:Uploads`. Pulumi's tools expect the three parts.
  * @param parts The resources the component is made of. Pass a function that
  * returns them when a part is another SST component and this is SST's own
  * code: those files import each other, so the class may not exist yet when
@@ -100,6 +101,10 @@ export function component<P extends Parts>(
   type: string,
   parts: P | (() => P),
 ): ComponentClass<P> {
+  if (!/^[^:\s]+:[^:\s]+:[^:\s]+$/.test(type))
+    throw new VisibleError(
+      `The component type "${type}" needs three parts, as "<package>:<module>:<Name>", like "acme:index:Uploads".`,
+    );
   return class extends PartsComponent<P> {
     /** @internal */
     static readonly __pulumiType = type;

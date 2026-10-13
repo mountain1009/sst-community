@@ -31,7 +31,7 @@ interface UploadsArgs extends sst.ComponentArgs<typeof parts> {
   audit?: boolean;
 }
 
-class Uploads extends sst.component("acme:Uploads", parts) {
+class Uploads extends sst.component("acme:index:Uploads", parts) {
   constructor(name: string, args: UploadsArgs, opts?: $util.ComponentResourceOptions) {
     super(name, args, opts);
 
@@ -122,7 +122,7 @@ the component reads its args.
     Use it when the name a resource has to keep isn't the key you want.
 - **An SST component can be a part**, like `sst.aws.v5.Function` or a certificate. If the
   component's own file imports yours, declare the parts in a function so they're read
-  late: `component("acme:Uploads", () => ({ ... }))`.
+  late: `component("acme:index:Uploads", () => ({ ... }))`.
 - **A part can be created later**, inside an `.apply()`, when whether it exists depends
   on something that's only known on deploy: another component's output, or the result of
   a build. Declare it `optional` or `many`. It's added to `nodes` when it's created, so

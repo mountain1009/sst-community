@@ -70,7 +70,7 @@ describe("a component in a package", () => {
             teams: string[];
           }
 
-          export class Uploads extends component("acme:Uploads", parts) {
+          export class Uploads extends component("acme:index:Uploads", parts) {
             constructor(name: string, args: UploadsArgs, opts?: ComponentResourceOptions) {
               super(name, args, opts);
               this.part("bucket", {});
@@ -123,7 +123,7 @@ describe("a component in a package", () => {
           teams: string[];
         }
 
-        export class Uploads extends sst.component("acme:Uploads", parts) {
+        export class Uploads extends sst.component("acme:index:Uploads", parts) {
           constructor(
             name: string,
             args: UploadsArgs,
@@ -158,7 +158,7 @@ describe("a component in a package", () => {
 
           export interface DocsArgs extends ComponentArgs<typeof parts> {}
 
-          export class Docs extends component("acme:Docs", parts) {
+          export class Docs extends component("acme:index:Docs", parts) {
             constructor(name: string, args: DocsArgs, opts?: ComponentResourceOptions) {
               super(name, args, opts);
               this.part("files", {});
