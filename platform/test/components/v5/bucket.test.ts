@@ -241,6 +241,21 @@ describe("Bucket", () => {
               "MyBucketSubscriberResizerRole",
             ]),
         },
+        "eventBridge with a notification to a queue": {
+          create: notify({
+            eventBridge: true,
+            notifications: [{ name: "Orders", queue: QUEUE_ARN }],
+          }),
+          unclaimed: [WRAPPER],
+        },
+        "eventBridge alone": {
+          create: notify({ eventBridge: true }),
+          unclaimed: [WRAPPER],
+          check: () =>
+            expect(resource("MyBucketNotification").inputs.eventbridge).toBe(
+              true,
+            ),
+        },
         "notifications to a queue and a topic given as arns": {
           create: notify({
             notifications: [
@@ -595,6 +610,12 @@ describe("Bucket", () => {
           notifications: [{ name: "Auditor", function: FUNCTION_ARN }],
         }),
       ).toThrow(/Cannot call "notify" on the "MyBucket" bucket multiple times/);
+    });
+
+    it("needs notifications or EventBridge", () => {
+      expect(() => new Bucket("MyBucket").notify({})).toThrow(
+        /Cannot call "notify" on the "MyBucket" bucket without notifications or EventBridge enabled/,
+      );
     });
 
     it("rejects a notification without one target, or a name used twice", async () => {

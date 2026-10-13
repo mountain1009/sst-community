@@ -204,8 +204,28 @@ export interface BucketNotificationArgs
 
 export interface BucketNotifyArgs {
   /**
+   * Publish every S3 event of the bucket to the account's default EventBridge bus. It
+   * doesn't send them anywhere by itself: add rules on the default bus to react to them,
+   * like the ones [`subscribeEventBridge`](/docs/component/aws/bucket/#static-subscribeeventbridge)
+   * creates for a bucket given by its name.
+   *
+   * S3 keeps one notification configuration for each bucket, so set it in the same call
+   * as the `notifications`.
+   *
+   * @default `false`
+   * @example
+   * ```js
+   * {
+   *   eventBridge: true,
+   *   notifications: [{ name: "MySubscriber", queue: myQueue }]
+   * }
+   * ```
+   */
+  eventBridge?: Input<boolean>;
+  /**
    * The notifications of the bucket. Each one has a `name` and one of
-   * `function`, `queue` or `topic`.
+   * `function`, `queue` or `topic`. Leave it out if the bucket only uses
+   * `eventBridge`.
    *
    * @example
    * ```js
@@ -221,7 +241,7 @@ export interface BucketNotifyArgs {
    * }
    * ```
    */
-  notifications: BucketNotificationArgs[];
+  notifications?: BucketNotificationArgs[];
 }
 
 /**
@@ -556,8 +576,12 @@ export class Bucket extends component("sst:aws:Bucket", parts) {
         `Cannot call "notify" on the "${name}" bucket multiple times. Calling it again will override previous notifications.`,
       );
 
+    if (!args.eventBridge && !args.notifications)
+      throw new VisibleError(
+        `Cannot call "notify" on the "${name}" bucket without notifications or EventBridge enabled.`,
+      );
     const notifications = plain(
-      args.notifications,
+      args.notifications ?? [],
       `The "notifications" of the "${name}" bucket`,
     );
 
@@ -653,7 +677,13 @@ export class Bucket extends component("sst:aws:Bucket", parts) {
 
     this.part(
       "notification",
-      { bucket: this.name, lambdaFunctions, queues, topics },
+      {
+        bucket: this.name,
+        eventbridge: args.eventBridge,
+        lambdaFunctions,
+        queues,
+        topics,
+      },
       { dependsOn },
     );
 

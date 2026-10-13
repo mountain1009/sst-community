@@ -44,6 +44,7 @@ Function parts in other components are declared `deferred(Function)` and created
 - **A 4.x ordering guarantee is kept:** everything that reads `bucket.name` waits for the bucket policy, in the `name` / `arn` / `domain` getters.
 - `subscribe`, `subscribeQueue` and `subscribeTopic` are gone; `notify` keeps the subscriber.
 - The takeover map also gives the top-level address of notifications from `Bucket.get(..., { parent })`.
+- **`notify` takes `eventBridge`**, from `main`'s #85 (2026-10-12), and then needs no `notifications`. The static `subscribeEventBridge` isn't ported: it takes any bucket by its name, so the 4.x one works with a v5 bucket, and a v5 one would create its function through a v5 `Bus`, which doesn't exist yet.
 - **A `cloudfront` bucket can only be read by distributions in the same account**, as in 4.x since `main` (2026-10-12). The account and partition are looked up with the component's provider.
 
 ## CognitoUserPool
