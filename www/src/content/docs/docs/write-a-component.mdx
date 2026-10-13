@@ -523,6 +523,39 @@ export class EmailDomain extends component("acme:index:EmailDomain", parts) {
 
 ---
 
+#### Ship a function's code
+
+A component that creates a function can ship its handler in the package. Export the file, and find it by the package's name, as Node would.
+
+```json title="package.json"
+"exports": {
+  ".": "./dist/index.js",
+  "./handler": "./dist/handler.js"
+}
+```
+
+```ts title="src/index.ts"
+import { createRequire } from "node:module";
+import { component } from "sst/components";
+import { v5 } from "sst/components/aws";
+import type { ComponentResourceOptions } from "@pulumi/pulumi";
+
+const handler = createRequire(import.meta.url)
+  .resolve("@acme/greeter/handler")
+  .replace(/\.js$/, ".handler");
+
+export class Greeter extends component("acme:index:Greeter", { api: v5.Function }) {
+  constructor(name: string, args = {}, opts?: ComponentResourceOptions) {
+    super(name, args, opts);
+    this.part("api", { handler, url: true });
+  }
+}
+```
+
+It finds the file wherever the app installed the package: in its `node_modules`, or in `.sst/platform` when the app lists it under `packages`. It works in `sst dev` too. A path relative to the component's own file doesn't work. The app bundles the package into its config when it deploys, so there `import.meta.url` is the bundle's.
+
+---
+
 #### Set it up
 
 The package's repo installs `sst`, Pulumi and the providers the component uses as dev dependencies. It needs no `sst.config.ts`.

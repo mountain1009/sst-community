@@ -193,7 +193,7 @@ Steps 1 and 2 stand alone, and could go to `v5` first. Steps 3 and 4 need step 1
 3. **A provider a package needs that the app hasn't added.** The deploy says to run `sst add` (open question 2 in [v5-sharing.md](v5-sharing.md)). Should `sst install` add it instead? A provider's settings, like its region, are in the config's `providers`, so adding one is a change to the config.
 4. **The platform's runtime dependencies in production installs.** An app that lists `sst` in `dependencies`, for `sst/resource`, also gets esbuild, archiver and glob after step 5. Every install of `sst` already brings the CLI's binary, about 96 MB, so they add little. A separate package for authors would keep them out, at the cost of a second package to publish.
 5. ~~**Types with two parts.**~~ Decided 2026-10-12: three, as Pulumi's convention is. `component()` refuses a type with two parts and says what to write, and the guide's and rulebook's examples use `acme:index:Uploads`. A link's type follows, as `acme.index.Uploads`. The CLI's fix stays on v5 for now, not on `main` or sent to SST.
-6. **A function's code in a package.** The guide doesn't say how a component finds a handler it ships. `createRequire(import.meta.url).resolve()` with the handler in the package's `exports` worked in the deploy and in `sst dev`. Say so in the guide, or give packages a helper?
+6. ~~**A function's code in a package.**~~ Decided 2026-10-12: the guide says how ("Ship a function's code"), with `createRequire(import.meta.url).resolve()` and the handler in the package's `exports`. No helper.
 
 ## Known limits
 
