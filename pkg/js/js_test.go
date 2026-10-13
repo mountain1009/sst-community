@@ -163,8 +163,8 @@ export default $config({
 import { component } from "sst/components";
 import { v5 } from "sst/components/aws";
 import * as aws from "@pulumi/aws";
-export const bucket = component("acme:Bucket", { bucket: aws.s3.Bucket });
-export const files = component("acme:Files", { files: v5.Bucket });
+export const bucket = component("acme:index:Bucket", { bucket: aws.s3.Bucket });
+export const files = component("acme:index:Files", { files: v5.Bucket });
 `,
 		"node_modules/pkg/package.json": `{"name":"pkg","type":"module","main":"index.mjs"}`,
 		"node_modules/pkg/index.mjs":    "import * as cloudflare from \"@pulumi/cloudflare\";\nexport const record = cloudflare.DnsRecord;",

@@ -53,7 +53,7 @@ interface EmailDomainArgs extends sst.ComponentArgs<typeof parts> {
   zoneId: string;
 }
 
-class EmailDomain extends sst.component("acme:EmailDomain", parts) {
+class EmailDomain extends sst.component("acme:index:EmailDomain", parts) {
   constructor(name: string, args: EmailDomainArgs, opts?: $util.ComponentResourceOptions) {
     super(name, args, opts);
 
