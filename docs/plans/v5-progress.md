@@ -148,6 +148,46 @@ See [the report](v5-aws-test-2026-10-01.md). It found three bugs that every test
 
 Checked by hand, since the takeover check can't see them: no docs link in the ports points at sst.dev, and `main`'s WebSocket authorizer and API Gateway account fixes are in code the ports don't use.
 
+## 2026-10-07 to 2026-10-12
+
+### Sharing components as packages
+
+On the local branches `v5-sharing` and `v5-sharing-host`, not on `v5` yet. The design is in [v5-sharing.md](v5-sharing.md), and the plan it was finished with in [v5-sharing-host.md](v5-sharing-host.md).
+
+First, on `v5-sharing` (2026-10-07):
+
+| Commit | What |
+| --- | --- |
+| `b477cd845` | `component()` returns a named type, `ComponentClass`, so a package can be compiled to a `.d.ts`. |
+| `605f2e3fd` | A package imports `sst/components`, and providers by their own names. Both resolve to the app's copies in `.sst/platform`. |
+| `4c85fa12c` | The platform ships compiled types, and `sst install` writes `.sst/tsconfig.json`. |
+| `40d01f595` | A deploy checks each package's peer dependencies on `sst` and the providers. |
+| `695fff2d7` | "X is not defined" says how to add the provider. |
+| `2716839f0` | An app's vitest config gets the platform and providers through `alias`. |
+| `2a9b0c36b` | `sst upgrade` and `sst init` stay in the CLI's own major version. |
+| `9270952d5` | "Share it" in the component guide. |
+
+Installing the providers in the app's `package.json` was then tried on `v5-sharing-deps` ([the proposal](v5-providers-in-package-json.md)), and not taken. Then, on `v5-sharing-host` (2026-10-12), with SST as the host:
+
+| Commit | What |
+| --- | --- |
+| `2ecd2483c` | The plan. |
+| `6eca18d4e` | A 4.x component file can change where it changes nothing for an app. |
+| `e37a04b30` | The globals' imports go at the end of an app file, so an error's line is right. |
+| `24de2a1ee` | SST's declarations name no globals, so a package's repo compiles against them. |
+| `5471a11ad` | `sst/components` is the core, and `sst/components/aws`, `/cloudflare` and `/vercel` are the groups. `mock()` gives a test the groups whose providers are installed. |
+| `d3522d217` | The `sst` package carries SST's components, compiled, with their types, for a package's repo. |
+| `6bd64acd0` | A package's repo builds and tests with ordinary tools, and no `sst.config.ts`. |
+| `054e776df` | SST installs `.sst/platform` with bun 1.4.2. 1.2.1 hung on a package whose peer dependencies conflict. |
+| `58ea65783` | An app without a `package.json` lists packages in its config, under `packages`. |
+| `fd29a89f4` | A provider version in another major version than SST's is refused, and `sst add` picks one in it. |
+| `f099af401` | The CLI no longer crashes after a deploy with a component type of two parts. Found by the AWS run. |
+| `cbe97c02b` | The run: three apps locally with CLIs from before and after, and a package with a function deployed to AWS and run in `sst dev`. |
+| `38447dc77` | A component's type has three parts. `component()` refuses two. |
+| `70b321483` | The guide says how a package ships a function's code. |
+
+The AWS run found what the mock can't: the CLI read every resource type in the state as having three parts. The deploy had finished, but the update wasn't marked finished and `outputs.json` wasn't written.
+
 ## What the harness can and can't see
 
 It records what's registered with the engine and compares, between a 4.x component and its v5 port: each resource's address (through aliases, as Pulumi resolves them), inputs, deploy options, registered outputs, what a function is built from, and what depends on what.

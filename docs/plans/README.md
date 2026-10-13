@@ -9,7 +9,7 @@ Where the fork's larger pieces of work are planned and tracked. `CLAUDE.md` hold
 | [v5-port-notes.md](v5-port-notes.md) | One section per ported component: its parts, what's plain, what changes on a switch, and what's deliberately different from version 4. |
 | [v5-aws-test-2026-10-01.md](v5-aws-test-2026-10-01.md) | The first deploy of the v5 components to a real AWS account: what ran, what it found, what's still untested. |
 | [v5-sharing.md](v5-sharing.md) | Sharing components as npm packages: the design, what's been checked, what it takes, and the open questions. |
-| [v5-sharing-host.md](v5-sharing-host.md) | The plan from here for sharing: SST keeps the runtime, a package builds against the `sst` npm package, and an app without a `package.json` can use one. |
+| [v5-sharing-host.md](v5-sharing-host.md) | How sharing was finished, step by step: SST keeps the runtime, a package builds against the `sst` npm package, and an app without a `package.json` can use one. |
 | [v5-providers-in-package-json.md](v5-providers-in-package-json.md) | Installing the providers in the app's `package.json`. Tried, and not taken. |
 
 The rules for writing a v5 component are not here. They're in [`platform/src/components/README.md`](../../platform/src/components/README.md), which ships with the CLI.

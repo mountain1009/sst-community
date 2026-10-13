@@ -1,6 +1,6 @@
 # Sharing components as packages
 
-Branch `v5-sharing`, from `v5`. Reviewed and built 2026-10-06. Nothing is committed yet.
+Built 2026-10-06 on the local branch `v5-sharing`, from `v5`, and finished 2026-10-12 on `v5-sharing-host`, from `v5-sharing` ([its plan](v5-sharing-host.md)). Neither is on `v5` yet.
 
 ## Goal
 
@@ -40,7 +40,10 @@ In an app, both resolve to the app's own copies in `.sst/platform`, at deploy ti
 | "X is not defined" says how to add a provider, for code that uses the globals | `platform/src/auto/run.ts` |
 | `alias` for an app's vitest config, when its tests load a package. `mock()` gives the `sst` global the groups whose providers are installed, and says what to install when a test uses another. | `platform/src/testing/vitest.ts`, `platform/src/testing/global.ts` |
 | `sst upgrade` and `sst init` pick the newest version in the CLI's own major version, with prereleases only from a prerelease. For 4.x that is what `latest` is today. A dev build keeps using `latest`. | `pkg/npm/versions.go`, `pkg/global/upgrade.go`, `pkg/project/create.go` |
-| Docs: "Share it" in the component guide, and two rules in the rulebook | `www/.../write-a-component.mdx`, `platform/src/components/README.md` |
+| An app without a `package.json` lists packages in its config, under `packages`. `sst install` installs them in `.sst/platform` with the providers, and records what it installed in `installed-packages.json`. | `pkg/project/packages.go`, `pkg/project/install.go` |
+| A provider version in the config has to be in the major version SST's components are built for (before 1.0, the minor version). `sst add` picks the newest one in it. | `pkg/project/install.go` |
+| `component()` refuses a type without three parts | `platform/src/components/parts-component.ts` |
+| Docs: "Share it" in the component guide, with how a package ships a function's code, and two rules in the rulebook | `www/.../write-a-component.mdx`, `platform/src/components/README.md` |
 
 ## How it was checked
 
@@ -64,6 +67,7 @@ In an app, both resolve to the app's own copies in `.sst/platform`, at deploy ti
   - Under the mock, a global `aws` resource is used through the package's `existing`, the `transform` applies, and linking it to a function works.
   - The same app without Cloudflare stops with `"@acme/email" needs the cloudflare provider. Add it with "sst add cloudflare".`
 - **The docs site builds.**
+- **Since then,** each step of [v5-sharing-host.md](v5-sharing-host.md) says how it was checked. In its step 9, three apps deployed with a CLI from before `v5-sharing-host` showed no changes with one from after it, and a package with a function was deployed to AWS and run in `sst dev`.
 
 ## Not done yet
 
@@ -74,8 +78,8 @@ In an app, both resolve to the app's own copies in `.sst/platform`, at deploy ti
    - `MAINTAINING.md` says not to tag 5.x.
 
    The CLI side (`sst upgrade`, `sst init`) is done here.
-2. **A deploy to AWS** of an app that uses a package, and `sst dev` with a function inside a package's component. Everything above ran under the mock.
-3. **Other package managers and Windows.** The check finds a package under pnpm's `.pnpm` layout by its last `node_modules/`. Neither has been run.
+2. ~~**A deploy to AWS**~~ of an app that uses a package, and `sst dev` with a function inside a package's component. Done 2026-10-12 ([v5-sharing-host.md](v5-sharing-host.md), step 9). It found a crash in the CLI on a component type with two parts.
+3. **Yarn and Windows.** npm, pnpm (with its `.pnpm` layout) and bun apps have each deployed a package. Yarn and Windows haven't been run.
 4. **`sst/components` reviewed as a public API.** Its `.d.ts` also shows members marked `@internal`.
 5. **A template package**, to copy as a starting point.
 
@@ -83,6 +87,7 @@ In an app, both resolve to the app's own copies in `.sst/platform`, at deploy ti
 
 - An app file that re-exports a global by name (`export { aws }`) no longer builds or runs. `export const x = aws` and `export default aws` still work.
 - When `app()` is read, a file it imports that uses a provider's module while it loads now gets a stub that throws. Providers aren't installed at that point, so such code couldn't rely on them before either.
+- A provider version in the config in another major version than SST's is refused, with which versions to use. 4.x installed it. `sst add` picks a version in SST's major version.
 
 ## Known limits
 

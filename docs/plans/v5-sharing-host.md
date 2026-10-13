@@ -1,6 +1,6 @@
 # Sharing components, with SST as the host
 
-**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 9 are done.** Each step below is its own commit, so any one of them can be reverted alone.
+**Status: done 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`.** Planned in `2ecd2483c`. Each step below is its own commit, so any one of them can be reverted alone. None of it is on `v5` yet.
 
 ## The goal
 
@@ -67,7 +67,7 @@ export default $config({
 });
 ```
 
-What that field is called, and where it goes, is open question 1.
+It's `packages` in `app()`, beside `providers` (step 7).
 
 ### A component package
 
@@ -115,13 +115,13 @@ There's no `sst.config.ts`, no `sst install` and no `.sst`. `tsc` builds it, and
 
 Each is its own commit. A step taken from `v5-sharing-deps` names its commit there, and its step in that branch's copy of the providers note.
 
-1. **The rule for 4.x component files** (done). Bring over `08f94b94d`: a 4.x component file can change where it changes nothing for an app (the config reads the same, and state doesn't change), and V5 components can change in any way. It was decided on 2026-10-09 for all of v5, but only committed on `v5-sharing-deps`, so the rulebook here still says not to edit a 4.x file. Steps 3 and 4 rely on it. Leave out its line in the providers note. It could go to `v5` directly instead.
+1. **The rule for 4.x component files** (done, `6eca18d4e`). Bring over `08f94b94d`: a 4.x component file can change where it changes nothing for an app (the config reads the same, and state doesn't change), and V5 components can change in any way. It was decided on 2026-10-09 for all of v5, but only committed on `v5-sharing-deps`, so the rulebook here still says not to edit a 4.x file. Steps 3 and 4 rely on it. Leave out its line in the providers note. It could go to `v5` directly instead.
 
-2. **An error's line in an app file** (done). Bring over `cad5baa86` (step 13): the globals' imports go at the end of a file instead of the top, so its lines keep their numbers. It's a few lines in `pkg/js/js.go`, likely redone by hand, since that file moved on there before it. Checked by its test, which runs a bundle with source maps and checks the line.
+2. **An error's line in an app file** (done, `e37a04b30`). Bring over `cad5baa86` (step 13): the globals' imports go at the end of a file instead of the top, so its lines keep their numbers. It's a few lines in `pkg/js/js.go`, likely redone by hand, since that file moved on there before it. Checked by its test, which runs a bundle with source maps and checks the line.
 
-3. **SST's types name no globals** (done). Bring over `ae3d39f0a` (step 14). The `sst` and `$util` aliases move to `platform/src/global-aliases.d.ts`, which the types build leaves out, and the 19 uses of `$util` in types become imports from Pulumi. Without it, SST's declarations name types through its globals, 487 times. A package's repo has no globals, so there `tsc` fails on a V5 component's `nodes`, and Pulumi's types become `any`. Leave out its line in `dependencies_test.go`, which isn't on this branch. The templates' `global.d.ts` imports the aliases too, which that commit missed. Checked: `tsc`, `declarations.test.ts`, and the generated docs identical before and after.
+3. **SST's types name no globals** (done, `24de2a1ee`). Bring over `ae3d39f0a` (step 14). The `sst` and `$util` aliases move to `platform/src/global-aliases.d.ts`, which the types build leaves out, and the 19 uses of `$util` in types become imports from Pulumi. Without it, SST's declarations name types through its globals, 487 times. A package's repo has no globals, so there `tsc` fails on a V5 component's `nodes`, and Pulumi's types become `any`. Leave out its line in `dependencies_test.go`, which isn't on this branch. The templates' `global.d.ts` imports the aliases too, which that commit missed. Checked: `tsc`, `declarations.test.ts`, and the generated docs identical before and after.
 
-4. **A core, and a group for each provider** (done). Port the components part of `7530dfa56` (step 11):
+4. **A core, and a group for each provider** (done, `5471a11ad`). Port the components part of `7530dfa56` (step 11):
    - `sst/components` is the core: what SST's components share. `sst/components/aws`, `/cloudflare` and `/vercel` are each provider's components. The `sst` global is all of them, as before.
    - `PlatformModules` lists the four, so a deploy maps each to the platform. `.sst/tsconfig.json` and the vitest `alias` map them too, which that commit didn't need, and a test checks the alias against the groups.
    - `mock()` gives the `sst` global the groups whose providers are installed, so a package's test needs only its own providers.
@@ -129,14 +129,14 @@ Each is its own commit. A step taken from `v5-sharing-deps` names its commit the
 
    Leave out the removal of step 10's stand-ins (not on this branch), its `sdk/js` changes (step 5 here), and its tests of the install from the app's `package.json`. A package that imported a group's component from `sst/components` now imports it from the group. That's unreleased. Checked: `groups.test.ts`, `global.test.ts`, and that the deploy's package check finds a package that imports only a group. And with CLIs built before and after it, on an app with local state, random and tls, a file using the globals and a package importing `sst/components`: deployed with the one from before, `sst diff` with the one after showed no changes, and its deploy changed only the encrypted values that a second deploy changes too. A package's `sst/components/aws` and `sst/components` gave it the `sst` global's `Bucket` and `Linkable`, and that app's `.sst/tsconfig.json` gave TypeScript the groups' types. A package's `.d.ts` names a group's component through the group (`declarations.test.ts`), and reading `app()` leaves the groups out, as it does `sst/components` (`TestBuildReadingApp`).
 
-5. **The `sst` package carries SST's components** (done). Port the package parts of `e5b14cdf0` (step 8) and `49ac2c834` (step 15):
+5. **The `sst` package carries SST's components** (done, `d3522d217`). Port the package parts of `e5b14cdf0` (step 8) and `49ac2c834` (step 15):
    - `sdk/js/scripts/platform.ts` compiles the platform to JavaScript, with its declarations, into the package's `platform` folder. Its entries are what the package exports: the core, each group and `sst/testing`. The `sst` global's `index.ts`, `auto/run.ts` and `shim/run.js` are left out, since only a deploy loads them.
    - The package exports `sst/components`, its three groups and `sst/testing`.
    - The release adds what the platform loads as it runs (esbuild, archiver and glob) to the published `package.json`, and lists each group's providers.
 
    Leave out step 8's CLI changes. An app's deploy still builds from `.sst/platform`, so nothing requires the package and the CLI to be the same version. Checked: the pack loads every export in plain Node, the groups included, and stops when one fails to load (tried by breaking one). Packed, it's 1.2 MB, 6.4 MB unpacked, and adds esbuild, archiver and glob to the SDK's dependencies.
 
-6. **A package's repo with ordinary tools** (done). With the packed `sst` and no `sst.config.ts`, `tsc` emits the package's declarations, and vitest, `node --test` and `bun test` pass. Then the docs: "Share it" in the component guide and the rulebook stop telling an author to run `sst install` and extend `.sst/tsconfig.json`. An app keeps both, and its tests keep the `alias`, since its providers are in `.sst/platform`.
+6. **A package's repo with ordinary tools** (done, `6bd64acd0`). With the packed `sst` and no `sst.config.ts`, `tsc` emits the package's declarations, and vitest, `node --test` and `bun test` pass. Then the docs: "Share it" in the component guide and the rulebook stop telling an author to run `sst install` and extend `.sst/tsconfig.json`. An app keeps both, and its tests keep the `alias`, since its providers are in `.sst/platform`.
 
    Checked, in a repo with the packed `sst`, Pulumi and the aws group's providers installed from npm, and nothing else of SST's:
    - One copy of `@pulumi/pulumi`. `tsc` emitted a `.d.ts` that names only `sst/components`, `sst/components/aws` and Pulumi, with the component's outputs typed.
@@ -146,7 +146,7 @@ Each is its own commit. A step taken from `v5-sharing-deps` names its commit the
 
    The message `mock()` gives for a group whose providers aren't installed said "the app hasn't installed" them. It now says what to do in a package's repo, and in an app. `MAINTAINING.md` says how to pack `sst` for a dev build.
 
-7. **Packages listed in the config,** for an app without a `package.json` (done):
+7. **Packages listed in the config,** for an app without a `package.json` (done, `58ea65783`, and bun 1.4.2 in `054e776df`):
    - `packages` in `app()`, beside `providers`, each with a version (decided 2026-10-12).
    - `sst install` adds them to `.sst/platform/package.json`, and installs them with the providers.
    - The bundler already falls back to `.sst/platform/node_modules` (`NodePaths` in `pkg/js/js.go`), so the config's import resolves.
@@ -164,15 +164,15 @@ Each is its own commit. A step taken from `v5-sharing-deps` names its commit the
 
    **Found while building it: SST's bun hung.** bun 1.2.1, which SST pinned, ran at full CPU without end installing a package from a `file:` tarball in `.sst/platform`. It did every time the package's peer dependencies conflicted with what the platform installs, here `@pulumi/random` `^5` against 4.21.2, and once without a conflict. A command just stops there, before the deploy's check could say what's wrong. On its own, with only the two packages, bun 1.2.1 hung too, with `--omit peer` as well. bun 1.4.2 installs the same in a second and warns about the peer. npm stops with `ERESOLVE`. A provider with a conflicting peer can hit the same, on 4.x too. So SST pins bun 1.4.2 now, released 2026-09-05. SST runs bun only to install `.sst/platform`. Checked, on an app with local state, random, tls, a file using the globals and a package: deployed with bun 1.2.1, the CLI with 1.4.2 installed the platform again and `sst diff` showed no changes. Every package both installed was at the same version, the providers included. Only where a few copies of `@types/node` are nested differed. The lockfile stayed `bun.lockb`.
 
-8. **A provider version in another major version is refused** (done). The rule is from `64fe7d481`: SST's components are written for one major version of each provider they use (before 1.0, one minor version).
-   - `sst install` refuses a version in the config outside it, after 4.x's check for an older one (open question 2). It says which to use: "You specified version 5.4.1 of the "vercel" provider. SST's components are built for 4.x, and a new major version can remove what they use. Use a 4.x version, 4.6.0 or higher."
+8. **A provider version in another major version is refused** (done, `fd29a89f4`). The rule is from `64fe7d481`: SST's components are written for one major version of each provider they use (before 1.0, one minor version).
+   - `sst install` refuses a version in the config outside it, after 4.x's check for an older one. It says which to use: "You specified version 5.4.1 of the "vercel" provider. SST's components are built for 4.x, and a new major version can remove what they use. Use a 4.x version, 4.6.0 or higher."
    - A provider SST's components don't use isn't checked, and neither is one the config gives its own `package`.
 
    What it took besides: **`sst add` picked a version the install would refuse.** It wrote the version npm tags latest into the config, and for vercel that's 5.4.1, a major version past SST's 4.6.0. For a provider SST's components use, it now picks the newest version in their major version, here 4.6.1. Prereleases aren't picked. Where latest is already in it, as for aws, it's what `sst add` picked before. The CLI reference and the providers page say so, and their examples use an aws 7 version, since SST already refused the 6 they showed.
 
    Checked: Go tests, with a stand-in registry, for the rule, the install and `sst add`, and the message. And with the CLI, on an app with only `sst.config.ts`: `vercel: "5.4.1"` stopped at `sst install` with the message above. 4.6.1 installed. 4.5.0 was still refused by 4.x's check. With no providers, `sst add vercel` wrote 4.6.1 into the config and installed it.
 
-9. **Run it** (done).
+9. **Run it** (done, `cbe97c02b`, and the fix in `f099af401`).
    - **Locally, with state in a local file.** Three apps were deployed with a CLI built from `v5-sharing`, before any step here, and diffed with one built from the last step: an app with only `sst.config.ts`, and an npm and a pnpm app, each using a package from `node_modules` (pnpm's is a link into its store). None showed changes. The first CLI installed `.sst/platform` with bun 1.2.1, the second with 1.4.2. Then the app with only `sst.config.ts` listed the package under `packages`: the deploy created its resources, and another diff found no changes.
    - **In AWS, on a stage of the lab app of its own.** A package whose component makes a V5 `Function` from a handler in the package. It finds the handler with `createRequire(import.meta.url).resolve("@acme/greeter/handler")`, so it needs no globals, and that works wherever the package is installed.
      - With the package listed in the config, the deploy created the function, and it answered from Lambda.
@@ -180,20 +180,23 @@ Each is its own commit. A step taken from `v5-sharing-deps` names its commit the
      - `sst dev`, with the package in each place: a call to the function was answered from the machine, and the CLI built the handler from the package's folder, in `node_modules` and in `.sst/platform/node_modules`.
      - Removed. The stage's passphrase, sourcemap and state files were deleted after, as SST leaves them. The lab's audit lists the same as before the run.
 
-   **Found: the CLI panicked after deploying a component whose type has two parts,** like `acme:Greeter`, as the guide writes them. Reading the deploy's results, it asked Pulumi for the type's module, and Pulumi fails when there's none. Everything was created and the state was saved by then. But the update wasn't marked finished, and `outputs.json` wasn't written. The CLI now takes the type's first part as its package, which is the same for a type with three. The code reads every resource in the state, so an app's own component written as in the guide hits it too. So would a 4.x app with a Pulumi `ComponentResource` of such a type: `main` and SST have the same line (open question 5).
+   **Found: the CLI panicked after deploying a component whose type has two parts,** like `acme:Greeter`, as the guide writes them. Reading the deploy's results, it asked Pulumi for the type's module, and Pulumi fails when there's none. Everything was created and the state was saved by then. But the update wasn't marked finished, and `outputs.json` wasn't written. The CLI now takes the type's first part as its package, which is the same for a type with three. The code reads every resource in the state, so an app's own component written as in the guide hits it too. So would a 4.x app with a Pulumi `ComponentResource` of such a type: `main` and SST have the same line. What came of it is under "Decided along the way".
 
-10. **Record it.** The status here, the log in [v5-progress.md](v5-progress.md), the decision in [v5-components.md](v5-components.md), and [v5-sharing.md](v5-sharing.md). Then `v5-sharing-deps` can be deleted.
+10. **Record it** (done). The status here, the log in [v5-progress.md](v5-progress.md), the decisions in [v5-components.md](v5-components.md), and [v5-sharing.md](v5-sharing.md). `v5-sharing-deps` can be deleted.
 
 Steps 1 and 2 stand alone, and could go to `v5` first. Steps 3 and 4 need step 1. Step 5 needs steps 3 and 4, and step 6 needs step 5. Steps 7 and 8 need none of the others.
 
+## Decided along the way
+
+- **The config field for packages** (2026-10-12): `packages` in `app()`, beside `providers`, with a version required (step 7).
+- **An older provider version, within SST's major version:** already refused. 4.x stops with "SST needs 7.48.0 or higher" (`ErrProviderVersionTooLow`), so step 8 added only the upper bound.
+- **A component's type has three parts** (2026-10-12, `38447dc77`), `<package>:<module>:<Name>`, as Pulumi's convention is and as SST's own components have. `component()` refuses a type with two parts and says what to write, and the guide's and rulebook's examples use `acme:index:Uploads`. A link's type follows, as `acme.index.Uploads`. The CLI's fix for two parts (step 9) stays on v5 for now, not on `main` or sent to SST.
+- **A function's code in a package** (2026-10-12, `70b321483`): the guide says how, in "Ship a function's code". The handler is in the package's `exports`, and the component finds it with `createRequire(import.meta.url).resolve()`. There's no helper for it.
+
 ## Open questions
 
-1. ~~**The config field for packages.**~~ Decided 2026-10-12: `packages` in `app()`, beside `providers`, with a version required (step 7).
-2. ~~**An older provider version, within SST's major version.**~~ Already refused: 4.x stops with "SST needs 7.48.0 or higher" (`ErrProviderVersionTooLow`). Step 8 added only the upper bound.
-3. **A provider a package needs that the app hasn't added.** The deploy says to run `sst add` (open question 2 in [v5-sharing.md](v5-sharing.md)). Should `sst install` add it instead? A provider's settings, like its region, are in the config's `providers`, so adding one is a change to the config.
-4. **The platform's runtime dependencies in production installs.** An app that lists `sst` in `dependencies`, for `sst/resource`, also gets esbuild, archiver and glob after step 5. Every install of `sst` already brings the CLI's binary, about 96 MB, so they add little. A separate package for authors would keep them out, at the cost of a second package to publish.
-5. ~~**Types with two parts.**~~ Decided 2026-10-12: three, as Pulumi's convention is. `component()` refuses a type with two parts and says what to write, and the guide's and rulebook's examples use `acme:index:Uploads`. A link's type follows, as `acme.index.Uploads`. The CLI's fix stays on v5 for now, not on `main` or sent to SST.
-6. ~~**A function's code in a package.**~~ Decided 2026-10-12: the guide says how ("Ship a function's code"), with `createRequire(import.meta.url).resolve()` and the handler in the package's `exports`. No helper.
+1. **A provider a package needs that the app hasn't added.** The deploy says to run `sst add` (open question 2 in [v5-sharing.md](v5-sharing.md)). Should `sst install` add it instead? A provider's settings, like its region, are in the config's `providers`, so adding one is a change to the config.
+2. **The platform's runtime dependencies in production installs.** An app that lists `sst` in `dependencies`, for `sst/resource`, also gets esbuild, archiver and glob after step 5. Every install of `sst` already brings the CLI's binary, about 96 MB, so they add little. A separate package for authors would keep them out, at the cost of a second package to publish.
 
 ## Known limits
 

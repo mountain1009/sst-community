@@ -33,8 +33,11 @@ Each of these was settled on the date given. Change one only on purpose, and rec
 | 2026-10-01 | **No `V5` suffix.** A v5 component has the original's file name and class name, in `aws/v5/`, used as `sst.aws.v5.Queue`. |
 | 2026-10-01 | **A v5 component has the same Pulumi type as the one it replaces** (`sst:aws:Queue`). The deployed component and every same-named child keep their address with no alias, what links a switched component sees no change, `Resource.X.type` stays the same, and there's nothing to undo when 4.x is removed. A `$transform` for either applies to both. |
 | 2026-10-01 | **Everything gets ported** (see Goal). |
+| 2026-10-12 | **Components are shared as npm packages, with SST as the host.** The CLI keeps installing SST, Pulumi and the providers in `.sst/platform`, and a package gets the app's copies when it deploys. A package imports `sst/components` (or a group, like `sst/components/aws`) and its providers, and lists them as peer dependencies. Its repo builds and tests against the `sst` npm package. An app without a `package.json` lists packages in its config, under `packages`. Installing the providers in the app's `package.json` was tried on `v5-sharing-deps` and not taken. See [v5-sharing-host.md](v5-sharing-host.md). |
+| 2026-10-12 | **A provider version in the config has to be in the major version SST's components are built for** (before 1.0, the minor version). An older one was already refused. |
+| 2026-10-12 | **A component's type has three parts**, `<package>:<module>:<Name>`. `component()` refuses two. |
 
-Against `main`, the only existing files changed under `platform/src` are `component.ts`, `naming.ts`, `index.ts`, `aws/index.ts` and `aws/permission.ts`. `platform/package.json` has one line changed (`sideEffects`). `cmd/sst` is identical to `main`.
+Since 2026-10-09 a 4.x file can change, so `git diff --stat main -- platform/src cmd/sst` lists what differs from `main`.
 
 ## Status
 
@@ -54,6 +57,8 @@ Against `main`, the only existing files changed under `platform/src` are `compon
 - One run in a real AWS account on 2026-10-01: all 19 deployed with 4.x, switched, and removed. See [the report](v5-aws-test-2026-10-01.md).
 
 **Where things stand (2026-10-01):** everything above is committed and pushed. `git log origin/v5` has the latest.
+
+**Sharing components (2026-10-12):** done on the local branches `v5-sharing` and `v5-sharing-host`, not on `v5` yet. See [v5-sharing-host.md](v5-sharing-host.md).
 
 ## Order from here
 
