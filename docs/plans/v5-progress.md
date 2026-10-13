@@ -211,6 +211,16 @@ And two features `main` added to components that have ports:
 
 `MicroVm` is new in 4.x and has no port yet.
 
+### `Bus`, and the bucket's EventBridge subscribers
+
+| Commit | What |
+| --- | --- |
+| `eff8bf2b0` | `Bus`, with each subscriber's function, permission, rule, target and queue policy as parts of the bus. The static `subscribe` and `subscribeQueue` become `get` and the ordinary methods. |
+| `e986c1b0d` | `Bucket.subscribeEventBridge`, which 4.x has as a static since v4.20.0, is a method of the v5 bucket, on the bucket or on `get`. 4.x named each subscription after the bucket's physical name, and the map works it out from `bucket.name`. As a static it would have needed a bus component per bucket, shared by every call. |
+| `9e3f1c749` | The root README's example component has a type with three parts, which `component()` asks for since `38447dc77`. Its test had been changed, and the README hadn't. |
+
+None of this, nor the fixes and features after the merge, has been deployed to AWS yet. Under the mock, `Bus` takes over every kind of 4.x subscriber with nothing changed, except a queue subscriber's provider, as with `SnsTopic`.
+
 ## What the harness can and can't see
 
 It records what's registered with the engine and compares, between a 4.x component and its v5 port: each resource's address (through aliases, as Pulumi resolves them), inputs, deploy options, registered outputs, what a function is built from, and what depends on what.
