@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/user"
 	"strings"
+	"time"
 
 	"github.com/sst/sst/v3/cmd/sst/cli"
 	"github.com/sst/sst/v3/cmd/sst/mosaic/dev"
@@ -61,7 +63,7 @@ var CmdTunnel = &cli.Command{
 		}, "\n"),
 	},
 	Run: func(c *cli.Cli) error {
-		if tunnel.NeedsInstall(version) {
+		if tunnel.NeedsInstall() {
 			return util.NewReadableError(nil, "The sst tunnel needs to be installed or upgraded. Run `sudo sst tunnel install`")
 		}
 
@@ -152,18 +154,23 @@ var CmdTunnel = &cli.Command{
 		fmt.Println()
 		fmt.Println(ui.TEXT_DIM.Render("Waiting for connections..."))
 		fmt.Println()
-		stderr, _ := tunnelCmd.StderrPipe()
+		// The stderr goes to a buffer and not a pipe we read, so Wait can give up on a
+		// child that ignores the closed stdin, such as a root copy from before this
+		// change, instead of hanging until it exits.
+		var stderr bytes.Buffer
+		tunnelCmd.Stderr = &stderr
+		tunnelCmd.WaitDelay = 10 * time.Second
 		if err := tunnelCmd.Start(); err != nil {
 			pipeRead.Close()
 			pipeWrite.Close()
 			return err
 		}
 		pipeRead.Close() // parent doesn't need read end
-		output, _ := io.ReadAll(stderr)
 		if err := tunnelCmd.Wait(); err != nil {
 			slog.Info("tunnel process ended", "error", err)
 		}
-		if strings.Contains(string(output), "password is required") {
+		output := stderr.String()
+		if strings.Contains(output, "password is required") {
 			return util.NewReadableError(nil, "Make sure you have installed the tunnel with `sudo sst tunnel install`")
 		}
 		return nil
