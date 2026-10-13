@@ -36,6 +36,15 @@ const subscriberPolicy = (bucket: Bucket, name: string) => ({
   name: interpolate`${subscriber(bucket, name)}Policy`,
   parent: false as const,
 });
+// The static `subscribeEventBridge()` keeps each subscription in a component
+// at the top of the app, named after the bucket's own name. It only had the
+// name, so the bucket was the bucket's physical name or one given by hand.
+const BUS_FUNCTION = "sst:aws:BusLambdaSubscriber";
+const eventBridgeSubscriber = (bucket: Bucket, id?: string) =>
+  bucket.name.apply(
+    (bucketName) => `${logicalName(bucketName)}EventBridgeSubscriber${id}`,
+  );
+
 // The one subscriber becomes one notification: the first of its kind. Two
 // resources can't both be what it was.
 const first = (created: Record<string, unknown>) =>
@@ -73,5 +82,13 @@ takeover(Bucket, {
         ? [subscriberPolicy(bucket, name)]
         : []),
     ],
+    eventBridgeSubscriber: (bucket, { id }) =>
+      childOf(BUS_FUNCTION, eventBridgeSubscriber(bucket, id), "Function"),
+    eventBridgePermission: (bucket, { id }) =>
+      childOf(BUS_FUNCTION, eventBridgeSubscriber(bucket, id), "Permission"),
+    eventBridgeRule: (bucket, { id }) =>
+      childOf(BUS_FUNCTION, eventBridgeSubscriber(bucket, id), "Rule"),
+    eventBridgeTarget: (bucket, { id }) =>
+      childOf(BUS_FUNCTION, eventBridgeSubscriber(bucket, id), "Target"),
   },
 });

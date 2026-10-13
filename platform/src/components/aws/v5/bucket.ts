@@ -8,6 +8,7 @@ import {
   output,
 } from "@pulumi/pulumi";
 import {
+  cloudwatch,
   getCallerIdentityOutput,
   getPartitionOutput,
   iam,
@@ -30,12 +31,16 @@ import type { Input } from "../../input";
 import { VisibleError } from "../../error";
 import { toSeconds } from "../../duration";
 import { Function } from "./function";
-import { functionPart } from "../helpers/function-part";
+import {
+  type FunctionDefinition,
+  functionPart,
+} from "../helpers/function-part";
 import { invokePermissionArgs } from "../helpers/function-permission";
 import { sendPolicyArgs } from "../helpers/queue-policy";
 import { permission } from "../permission";
 import type {
   BucketArgs as OriginalBucketArgs,
+  BucketEventBridgeSubscriberArgs as OriginalBucketEventBridgeSubscriberArgs,
   BucketNotificationsArgs,
 } from "../bucket";
 import type { Queue as OriginalQueue } from "../queue";
@@ -93,6 +98,26 @@ const parts = () => ({
    * notification name.
    */
   topicPolicy: many(sns.TopicPolicy),
+  /**
+   * The functions subscribed to the bucket's events on the default
+   * EventBridge bus, by subscriber name.
+   */
+  eventBridgeSubscriber: many(deferred(Function)),
+  /**
+   * The permissions that let EventBridge invoke each of those functions, by
+   * subscriber name.
+   */
+  eventBridgePermission: many(lambda.Permission),
+  /**
+   * The rules that match the bucket's events for each subscriber, by
+   * subscriber name.
+   */
+  eventBridgeRule: many(cloudwatch.EventRule),
+  /**
+   * The targets that send what each rule matches to its function, by
+   * subscriber name.
+   */
+  eventBridgeTarget: many(cloudwatch.EventTarget),
 });
 
 /** An arg as a plain value: what's left when it can't be an output or a promise. */
@@ -202,12 +227,14 @@ export interface BucketNotificationArgs
   topic?: Input<string | OriginalSnsTopic | SnsTopic>;
 }
 
+export interface BucketEventBridgeSubscriberArgs
+  extends Omit<OriginalBucketEventBridgeSubscriberArgs, "transform"> {}
+
 export interface BucketNotifyArgs {
   /**
    * Publish every S3 event of the bucket to the account's default EventBridge bus. It
-   * doesn't send them anywhere by itself: add rules on the default bus to react to them,
-   * like the ones [`subscribeEventBridge`](/docs/component/aws/bucket/#static-subscribeeventbridge)
-   * creates for a bucket given by its name.
+   * doesn't send them anywhere by itself: subscribe to them with
+   * [`subscribeEventBridge`](#subscribeeventbridge), or add your own rules on the default bus.
    *
    * S3 keeps one notification configuration for each bucket, so set it in the same call
    * as the `notifications`.
@@ -283,6 +310,18 @@ export interface BucketNotifyArgs {
  * });
  * ```
  *
+ * #### Subscribe to its events in EventBridge
+ *
+ * Publish the bucket's events to the default EventBridge bus, then subscribe to them.
+ *
+ * ```ts title="sst.config.ts"
+ * bucket
+ *   .notify({ eventBridge: true })
+ *   .subscribeEventBridge("Resizer", "src/resize.handler", {
+ *     pattern: { detailType: ["Object Created"] }
+ *   });
+ * ```
+ *
  * #### Link the bucket to a resource
  *
  * ```ts title="sst.config.ts"
@@ -317,6 +356,11 @@ export interface BucketNotifyArgs {
  * - The `transform` of `notify` becomes the bucket's `transform.notification`.
  * - `subscribe`, `subscribeQueue` and `subscribeTopic` are gone. Use `notify`, which keeps
  *   the subscriber you had.
+ * - `sst.aws.Bucket.subscribeEventBridge(name, bucketName, ...)` is `subscribeEventBridge`
+ *   on the bucket, or on `get` for a bucket that isn't in your app. What it created is
+ *   kept. It's created with the bucket's `provider`, where `sst.aws.Bucket` used your app's:
+ *   if your bucket has a `provider`, its rule, target and permission are replaced on
+ *   switch.
  * - `get` gives its options to the component, so a `provider` or `parent` you pass it
  *   applies to the bucket's notifications too. `sst.aws.Bucket.get` gave them to the bucket it
  *   looked up and to nothing else. If you pass `get` a `provider` and call `notify` on that
@@ -687,6 +731,79 @@ export class Bucket extends component("sst:aws:Bucket", parts) {
       { dependsOn },
     );
 
+    return this;
+  }
+
+  /**
+   * Subscribe to the bucket's events on the account's default EventBridge bus with a
+   * function. This creates a rule that matches the events of this bucket, and a target
+   * for it. The bucket has to publish to EventBridge: for a bucket in your app, that's
+   * `notify({ eventBridge: true })`. For a bucket that isn't, reference it with `get` and
+   * turn EventBridge on for it where it's managed.
+   *
+   * @param name The name of the subscriber.
+   * @param subscriber The function that'll be notified: its handler, its args, a function
+   * component, or the ARN of a function.
+   * @param args Configure the subscription.
+   *
+   * @example
+   *
+   * ```js title="sst.config.ts"
+   * bucket.subscribeEventBridge("Resizer", "src/resize.handler", {
+   *   pattern: {
+   *     detailType: ["Object Created"],
+   *     detail: {
+   *       object: { key: [{ prefix: "uploads/" }] }
+   *     }
+   *   }
+   * });
+   * ```
+   */
+  public subscribeEventBridge(
+    name: string,
+    subscriber: FunctionDefinition,
+    args: BucketEventBridgeSubscriberArgs = {},
+  ) {
+    this.assertNew("EventBridge subscriber", "eventBridgeRule", name, args, [
+      "eventBridgeRule",
+      "eventBridgeTarget",
+    ]);
+    // The account's default bus, where S3 publishes a bucket's events
+    const bus = "default";
+    const rule = this.part("eventBridgeRule", name, {
+      eventBusName: bus,
+      state: output(args.enabled ?? true).apply((enabled) =>
+        enabled ? "ENABLED" : "DISABLED",
+      ),
+      // This bucket's events, and of those the ones the pattern matches
+      eventPattern: all([this.name, args.pattern ?? {}]).apply(
+        ([bucketName, pattern]) => {
+          const detail = pattern.detail ?? {};
+          return JSON.stringify({
+            "detail-type": pattern.detailType,
+            source: ["aws.s3"],
+            detail: {
+              ...detail,
+              bucket: { ...(detail.bucket ?? {}), name: [bucketName] },
+            },
+          });
+        },
+      ),
+    });
+    const fn = functionPart(this, "eventBridgeSubscriber", name, subscriber, {
+      description: `Subscribed to ${bus}`,
+    });
+    const permission = this.part(
+      "eventBridgePermission",
+      name,
+      invokePermissionArgs(fn, "events.amazonaws.com", rule.arn),
+    );
+    this.part(
+      "eventBridgeTarget",
+      name,
+      { arn: fn.targetArn, rule: rule.name, eventBusName: bus },
+      { dependsOn: [permission] },
+    );
     return this;
   }
 

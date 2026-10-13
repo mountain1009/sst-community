@@ -4,10 +4,14 @@ import { mockPulumi, type TakeoverWay } from "../../helpers/graph";
 
 // A policy document is worked out by AWS. Here it's the statements it's given,
 // so two policies compare equal when their statements are the same. A bucket
-// that's looked up is named what it was looked up by.
+// that's looked up is named what it was looked up by, and so is a bus.
 const pulumi = mockPulumi({
   state: (args) =>
-    args.type === "aws:s3/bucket:Bucket" && args.id ? { bucket: args.id } : {},
+    args.type === "aws:s3/bucket:Bucket" && args.id
+      ? { bucket: args.id }
+      : args.type === "aws:cloudwatch/eventBus:EventBus" && args.id
+        ? { name: args.id }
+        : {},
   call: (args) =>
     args.token === "aws:iam/getPolicyDocument:getPolicyDocument"
       ? { json: JSON.stringify(sorted(args.inputs)) }
@@ -727,5 +731,89 @@ describe("Bucket", () => {
       "arn:aws:mock:us-east-1:123456789012:MyBucketBucket",
       "arn:aws:mock:us-east-1:123456789012:MyBucketBucket/*",
     ]);
+  });
+
+  // The 4.x static `subscribeEventBridge` keeps each subscription in a
+  // component at the top of the app, named after the bucket's own name
+  describe("subscribeEventBridge", () => {
+    const pattern = {
+      detailType: ["Object Created"],
+      detail: { object: { key: [{ prefix: "uploads/" }] } },
+    };
+    const BUS_SUBSCRIBER = /^sst:aws:BusLambdaSubscriber::\w+EventBridgeSubscriberResizer$/;
+    const DEFAULT_BUS = /^aws:cloudwatch\/eventBus:EventBus::\w+EventBridgeSubscriberResizerDefaultBus$/;
+
+    it("takes over a subscriber of a bucket in the app", async () => {
+      const result = await pulumi.takesOver(
+        () => {
+          const bucket = new OriginalBucket("MyBucket");
+          OriginalBucket.subscribeEventBridge("Resizer", bucket.name, FUNCTION_ARN, {
+            pattern,
+          });
+        },
+        () =>
+          new Bucket("MyBucket").subscribeEventBridge("Resizer", FUNCTION_ARN, {
+            pattern,
+          }),
+      );
+      // What goes: the subscriber component and the default bus 4.x looked
+      // up, which have nothing in AWS behind them
+      expect(result.unclaimed).toHaveLength(2);
+      expect(result.unclaimed.some((u) => BUS_SUBSCRIBER.test(u))).toBe(true);
+      expect(result.unclaimed.some((u) => DEFAULT_BUS.test(u))).toBe(true);
+      expect(result.changed).toEqual([]);
+    });
+
+    it("takes over a subscriber of a bucket that isn't in the app", async () => {
+      const result = await pulumi.takesOver(
+        () =>
+          OriginalBucket.subscribeEventBridge(
+            "Resizer",
+            "my-uploads",
+            "src/resize.handler",
+          ),
+        () =>
+          Bucket.get("Uploads", "my-uploads").subscribeEventBridge(
+            "Resizer",
+            "src/resize.handler",
+          ),
+      );
+      expect(result.unclaimed).toEqual([
+        "aws:cloudwatch/eventBus:EventBus::MyuploadsEventBridgeSubscriberResizerDefaultBus",
+        "sst:aws:BusLambdaSubscriber::MyuploadsEventBridgeSubscriberResizer",
+      ]);
+      expect(result.changed).toEqual([]);
+    });
+
+    it("matches only the bucket's own events", async () => {
+      Bucket.get("Uploads", "my-uploads").subscribeEventBridge(
+        "Resizer",
+        FUNCTION_ARN,
+        { pattern: { detail: { bucket: { region: ["us-east-1"] } } } },
+      );
+      await pulumi.settle();
+
+      const rule = pulumi.resources.find(
+        (r) => r.name === "UploadsEventBridgeRuleResizer",
+      )!;
+      expect(JSON.parse(rule.inputs.eventPattern)).toEqual({
+        source: ["aws.s3"],
+        detail: { bucket: { region: ["us-east-1"], name: ["my-uploads"] } },
+      });
+      expect(rule.inputs.eventBusName).toBe("default");
+    });
+
+    it("refuses a subscriber's transform, and a name used twice", () => {
+      const bucket = new Bucket("MyBucket").subscribeEventBridge(
+        "Resizer",
+        FUNCTION_ARN,
+      );
+      expect(() =>
+        bucket.subscribeEventBridge("Other", FUNCTION_ARN, {
+          transform: {},
+        } as any),
+      ).toThrow(/its "eventBridgeRule" and "eventBridgeTarget" apply/);
+      expect(() => bucket.subscribeEventBridge("Resizer", FUNCTION_ARN)).toThrow();
+    });
   });
 });
