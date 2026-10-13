@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/sst/sst/v3/pkg/id"
 	"github.com/sst/sst/v3/pkg/project/common"
 	"github.com/sst/sst/v3/pkg/project/provider"
@@ -62,7 +63,7 @@ func getCompletedEvent(ctx context.Context, passphrase string, workdir *PulumiWo
 		if !ok {
 			continue
 		}
-		if resource.URN.Type().Module().Package().Name() == "sst" {
+		if typePackage(resource.Type) == "sst" {
 			if resource.Type == "sst:sst:Version" {
 				target, targetOk := outputs["target"].(string)
 				version, versionOk := outputs["version"].(float64)
@@ -187,4 +188,10 @@ func parsePlaintext(input interface{}) interface{} {
 	default:
 		return cast
 	}
+}
+
+// The package of a resource's type, its first part. A component's type can
+// have two parts, like "acme:Uploads", which Pulumi's Module() fails on.
+func typePackage(t tokens.Type) string {
+	return strings.SplitN(string(t), ":", 2)[0]
 }
