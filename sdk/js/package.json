@@ -26,6 +26,26 @@
     "./auth/adapter": "./dist/auth/adapter/index.js",
     "./event": "./dist/event/index.js",
     "./realtime": "./dist/realtime/index.js",
+    "./components": {
+      "types": "./platform/types/components/core.d.ts",
+      "default": "./platform/js/components/core.js"
+    },
+    "./components/aws": {
+      "types": "./platform/types/components/aws/index.d.ts",
+      "default": "./platform/js/components/aws/index.js"
+    },
+    "./components/cloudflare": {
+      "types": "./platform/types/components/cloudflare/index.d.ts",
+      "default": "./platform/js/components/cloudflare/index.js"
+    },
+    "./components/vercel": {
+      "types": "./platform/types/components/vercel/index.d.ts",
+      "default": "./platform/js/components/vercel/index.js"
+    },
+    "./testing": {
+      "types": "./platform/types/testing/index.d.ts",
+      "default": "./platform/js/testing/index.js"
+    },
     "./*": {
       "import": "./dist/*.js",
       "types": "./dist/*.d.ts"
@@ -49,7 +69,8 @@
   },
   "files": [
     "dist",
-    "bin"
+    "bin",
+    "platform"
   ],
   "bin": {
     "sst": "./bin/sst.mjs"

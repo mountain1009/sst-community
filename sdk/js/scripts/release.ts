@@ -7,6 +7,7 @@ import path from "path";
 import metafile from "../../../dist/metadata.json";
 import artifacts from "../../../dist/artifacts.json";
 import pkg from "../package.json";
+import { copyPlatform } from "./platform";
 const nextPkg = JSON.parse(JSON.stringify(pkg));
 // Publish under the fork's npm name (pkg/global/distribution.go). The workspace
 // package stays "sst" so bun.lockb matches upstream's.
@@ -25,6 +26,7 @@ console.log("publishing", nextPkg.version);
 
 await fs.rmdir("dist", { recursive: true }).catch(() => {});
 await $`bun run build`;
+Object.assign((nextPkg.dependencies ??= {}), await copyPlatform());
 
 const cpus = {
   arm64: "arm64",

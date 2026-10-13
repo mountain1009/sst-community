@@ -1,6 +1,6 @@
 # Sharing components, with SST as the host
 
-**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 4 are done.** Each step below is its own commit, so any one of them can be reverted alone.
+**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 5 are done.** Each step below is its own commit, so any one of them can be reverted alone.
 
 ## The goal
 
@@ -129,12 +129,12 @@ Each is its own commit. A step taken from `v5-sharing-deps` names its commit the
 
    Leave out the removal of step 10's stand-ins (not on this branch), its `sdk/js` changes (step 5 here), and its tests of the install from the app's `package.json`. A package that imported a group's component from `sst/components` now imports it from the group. That's unreleased. Checked: `groups.test.ts`, `global.test.ts`, and that the deploy's package check finds a package that imports only a group. And with CLIs built before and after it, on an app with local state, random and tls, a file using the globals and a package importing `sst/components`: deployed with the one from before, `sst diff` with the one after showed no changes, and its deploy changed only the encrypted values that a second deploy changes too. A package's `sst/components/aws` and `sst/components` gave it the `sst` global's `Bucket` and `Linkable`, and that app's `.sst/tsconfig.json` gave TypeScript the groups' types. A package's `.d.ts` names a group's component through the group (`declarations.test.ts`), and reading `app()` leaves the groups out, as it does `sst/components` (`TestBuildReadingApp`).
 
-5. **The `sst` package carries SST's components.** Port the package parts of `e5b14cdf0` (step 8) and `49ac2c834` (step 15):
-   - `sdk/js/scripts/platform.ts` compiles the platform to JavaScript, with its declarations, into the package's `platform` folder.
+5. **The `sst` package carries SST's components** (done). Port the package parts of `e5b14cdf0` (step 8) and `49ac2c834` (step 15):
+   - `sdk/js/scripts/platform.ts` compiles the platform to JavaScript, with its declarations, into the package's `platform` folder. Its entries are what the package exports: the core, each group and `sst/testing`. The `sst` global's `index.ts`, `auto/run.ts` and `shim/run.js` are left out, since only a deploy loads them.
    - The package exports `sst/components`, its three groups and `sst/testing`.
    - The release adds what the platform loads as it runs (esbuild, archiver and glob) to the published `package.json`, and lists each group's providers.
 
-   Leave out step 8's CLI changes. An app's deploy still builds from `.sst/platform`, so nothing requires the package and the CLI to be the same version. Checked: the packed package loads in plain Node, as step 15's script checks.
+   Leave out step 8's CLI changes. An app's deploy still builds from `.sst/platform`, so nothing requires the package and the CLI to be the same version. Checked: the pack loads every export in plain Node, the groups included, and stops when one fails to load (tried by breaking one). Packed, it's 1.2 MB, 6.4 MB unpacked, and adds esbuild, archiver and glob to the SDK's dependencies.
 
 6. **A package's repo with ordinary tools.** With the packed `sst` and no `sst.config.ts`, `tsc` emits the package's declarations, and vitest, `node --test` and `bun test` pass. Then the docs: "Share it" in the component guide and the rulebook stop telling an author to run `sst install` and extend `.sst/tsconfig.json`. An app keeps both, and its tests keep the `alias`, since its providers are in `.sst/platform`.
 

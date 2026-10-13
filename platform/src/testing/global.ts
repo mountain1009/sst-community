@@ -1,5 +1,7 @@
 import fs from "fs";
 import { createRequire } from "module";
+import path from "path";
+import { fileURLToPath } from "url";
 import { groups } from "../components/groups";
 
 /**
@@ -45,14 +47,21 @@ function list(names: string[]) {
 
 /**
  * The providers each group's components load, where the platform's
- * package.json lists them. Empty where they're all installed with the
- * platform, as in an app's `.sst/platform` and the platform's own tests.
+ * package.json lists them: the one nearest this file, from its source or from
+ * the JavaScript the `sst` package has. Empty where they're all installed
+ * with the platform, as in an app's `.sst/platform` and the platform's own
+ * tests.
  */
 function groupProviders(): Record<string, string[]> {
-  const platform = JSON.parse(
-    fs.readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
-  );
-  return platform.groups ?? {};
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  while (true) {
+    const file = path.join(dir, "package.json");
+    if (fs.existsSync(file))
+      return JSON.parse(fs.readFileSync(file, "utf8")).groups ?? {};
+    const parent = path.dirname(dir);
+    if (parent === dir) return {};
+    dir = parent;
+  }
 }
 
 /** Those of `names` that SST's components can't load */
