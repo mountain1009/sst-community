@@ -7,7 +7,16 @@ import {
   interpolate,
   output,
 } from "@pulumi/pulumi";
-import { iam, lambda, s3, sns, sqs, types } from "@pulumi/aws";
+import {
+  getCallerIdentityOutput,
+  getPartitionOutput,
+  iam,
+  lambda,
+  s3,
+  sns,
+  sqs,
+  types,
+} from "@pulumi/aws";
 import {
   V5Args,
   component,
@@ -362,7 +371,7 @@ export class Bucket extends component("sst:aws:Bucket", parts) {
 
     this.part(
       "policy",
-      { bucket: bucket.bucket, policy: policyDocument(bucket.arn, args) },
+      { bucket: bucket.bucket, policy: policyDocument(bucket.arn, args, opts) },
       { dependsOn: publicAccessBlock },
     );
 
@@ -739,11 +748,13 @@ function arnOf(
 /**
  * The bucket policy: read access for the public or for CloudFront, the
  * statement that denies requests that aren't over HTTPS, and the user's own
- * statements.
+ * statements. The account and partition are looked up with the component's
+ * provider.
  */
 function policyDocument(
   arn: Output<string>,
   args: Pick<BucketArgs, "access" | "enforceHttps" | "policy">,
+  opts?: ComponentResourceOptions,
 ) {
   return all([
     args.access,
@@ -760,6 +771,20 @@ function policyDocument(
         ],
         actions: ["s3:GetObject"],
         resources: [interpolate`${arn}/*`],
+        // Without it, a distribution in any AWS account could read the bucket
+        // through its own origin access control
+        conditions:
+          access === "public"
+            ? undefined
+            : [
+                {
+                  test: "StringLike",
+                  variable: "aws:SourceArn",
+                  values: [
+                    interpolate`arn:${getPartitionOutput({}, opts).partition}:cloudfront::${getCallerIdentityOutput({}, opts).accountId}:distribution/*`,
+                  ],
+                },
+              ],
       });
     if (enforceHttps)
       statements.push({
