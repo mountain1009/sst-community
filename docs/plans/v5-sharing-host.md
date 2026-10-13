@@ -1,6 +1,6 @@
 # Sharing components, with SST as the host
 
-**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Nothing in it is built yet.** Each step below is its own commit, so any one of them can be reverted alone.
+**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Step 1 is done.** Each step below is its own commit, so any one of them can be reverted alone.
 
 ## The goal
 
@@ -115,7 +115,7 @@ There's no `sst.config.ts`, no `sst install` and no `.sst`. `tsc` builds it, and
 
 Each is its own commit. A step taken from `v5-sharing-deps` names its commit there, and its step in that branch's copy of the providers note.
 
-1. **The rule for 4.x component files.** Bring over `08f94b94d`: a 4.x component file can change where it changes nothing for an app (the config reads the same, and state doesn't change), and V5 components can change in any way. It was decided on 2026-10-09 for all of v5, but only committed on `v5-sharing-deps`, so the rulebook here still says not to edit a 4.x file. Steps 3 and 4 rely on it. Leave out its line in the providers note. It could go to `v5` directly instead.
+1. **The rule for 4.x component files** (done). Bring over `08f94b94d`: a 4.x component file can change where it changes nothing for an app (the config reads the same, and state doesn't change), and V5 components can change in any way. It was decided on 2026-10-09 for all of v5, but only committed on `v5-sharing-deps`, so the rulebook here still says not to edit a 4.x file. Steps 3 and 4 rely on it. Leave out its line in the providers note. It could go to `v5` directly instead.
 
 2. **An error's line in an app file.** Bring over `cad5baa86` (step 13): the globals' imports go at the end of a file instead of the top, so its lines keep their numbers. It's a few lines in `pkg/js/js.go`, likely redone by hand, since that file moved on there before it. Checked by its test, which runs a bundle with source maps and checks the line.
 

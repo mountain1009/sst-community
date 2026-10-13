@@ -21,12 +21,13 @@ Each of these was settled on the date given. Change one only on purpose, and rec
 
 | Date | Decision |
 | --- | --- |
-| 2026-09-30 | **A v5 component sits next to the one it replaces.** No 4.x component file is edited, so upstream merges into them stay clean and 4.x components behave as before. |
+| 2026-09-30 | **A v5 component sits next to the one it replaces.** No 4.x component file is edited, so upstream merges into them stay clean and 4.x components behave as before. Narrowed on 2026-10-09, below. |
 | 2026-09-30 | **One way to define a component:** `extends component(type, parts)`. `Component` has no parts, `PartsComponent` isn't exported, and authors don't call `defer()`. |
 | 2026-09-30 | **Design it clean.** A v5 component doesn't have to mirror the original's structure. What only wires resources together (a subscription, a route, an authorizer) becomes parts of the parent. What the user names and links in its own right stays a component. |
 | 2026-09-30 | **What takes a component is ported before the component.** Version 4 components recognise a `Vpc`, `Cluster`, `Efs`, `Alb` or `Router` with `instanceof`, and those files can't be edited. So consumers are ported first, each accepting both kinds, and the component itself last. A runtime `Symbol.hasInstance` shim was turned down. |
 | 2026-09-30 | **Takeover is kept out of the component.** What moved lives in `aws/takeover/<name>.ts`. The component's own code names no other component's type and sets no aliases. |
 | 2026-09-30 | **Fork-owned TypeScript files import without the `.js` extension.** Upstream files keep what they have. |
+| 2026-10-09 | **v5 diverges from SST.** Keeping SST's code as it is, so merges stay clean, is no longer a constraint. A 4.x component file can be edited where it changes nothing for an app that uses it: its config reads the same and its state doesn't change, as with imports, what a file reads when it loads, and types. New behavior still goes in the V5 component. V5 components haven't been released, so they can still change in any way. |
 | 2026-09-30 | **The 4.x `Function` trust policy is reproduced as deployed** (it always trusts the account root). Tightening it would update every role on switch; it's its own change. `sst shell --target` and `sst dev` both assume function roles, so trace that first. |
 | 2026-10-01 | **Args that decide what gets created are plain values, not `Input`s**, guarded with `plain()`. To be revisited only if asked. The alternative is to accept either and create the part late, inside `.apply()`, when given an output. |
 | 2026-10-01 | **No `V5` suffix.** A v5 component has the original's file name and class name, in `aws/v5/`, used as `sst.aws.v5.Queue`. |

@@ -237,7 +237,11 @@ Everything above applies. The rest is specific to SST's own components in
   for its types: `import type { Queue as OriginalQueue } from "../queue"`. In prose,
   say which one you mean: "the 4.x `Queue`" in a code comment, `sst.aws.Queue` and
   `sst.aws.v5.Queue` in what the docs are generated from.
-- **Don't edit any 4.x component file.** They keep merging cleanly from upstream.
+- **Edit a 4.x component file only where it changes nothing for an app that uses it.**
+  An app's config has to read the same, and its state can't change: imports, what a
+  file reads when it loads, and types are fine. New behavior goes in the V5
+  component. V5 components haven't been released, so they can still change in any
+  way.
 - **Redesign, don't translate.** A V5 component doesn't have to mirror the original's
   structure.
 - **Port what takes a component before the component itself.** 4.x components
