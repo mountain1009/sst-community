@@ -401,6 +401,14 @@ describe("WebFunction", () => {
       "Revision",
     ]);
     expect(config.Resources.Function.Type).toBe("AWS::Lambda::WebFunction");
+    expect(config.Resources.Function.Properties.Tags).toEqual(
+      expect.arrayContaining([
+        { Key: "sst:app", Value: "app" },
+        { Key: "sst:stage", Value: "test" },
+      ]),
+    );
+    expect(config.Resources.Revision.Properties).not.toHaveProperty("Tags");
+    expect(config.Resources.Endpoint.Properties).not.toHaveProperty("Tags");
     expect(config.Resources.Revision.Type).toBe(
       "AWS::Lambda::WebFunctionRevision",
     );
@@ -440,7 +448,9 @@ describe("WebFunction", () => {
     const fn = new WebFunction("CustomLogGroup", {
       entrypoint: "index.mjs",
       bundle: out,
-      transform: { logGroup: { name: "/custom/logs/my-http-api" } },
+      transform: {
+        logGroup: { name: "/custom/logs/my-http-api", retentionInDays: 7 },
+      },
     });
     await resolved(fn.url);
     const config = template("CustomLogGroup");
@@ -452,6 +462,57 @@ describe("WebFunction", () => {
       config.Resources.Revision.Properties.ServiceConfig.TelemetryConfig
         .LoggingConfig.LogGroup,
     ).toBe("/custom/logs/my-http-api");
+    expect(await resolved(fn.nodes.localLogGroup!.name)).toBe(
+      "/custom/logs/my-http-api.local",
+    );
+    expect(await resolved(fn.nodes.localLogGroup!.retentionInDays)).toBe(7);
+    expect(await resolved(fn.nodes.logGroup.retentionInDays)).toBe(7);
+  });
+
+  it("creates the local CloudWatch group with the central name and retention", async () => {
+    const fn = new WebFunction("LogGroups", {
+      entrypoint: "index.mjs",
+      bundle: out,
+    });
+    await resolved(fn.url);
+    expect(ofType("aws:cloudwatch/logGroup:LogGroup")).toHaveLength(2);
+    expect(fn.nodes.localLogGroup).toBeDefined();
+    const centralName = await resolved(fn.nodes.logGroup.name);
+    const retention = await resolved(fn.nodes.logGroup.retentionInDays);
+    expect(await resolved(fn.nodes.localLogGroup!.name)).toBe(
+      `${centralName}.local`,
+    );
+    expect(await resolved(fn.nodes.localLogGroup!.retentionInDays)).toBe(
+      retention,
+    );
+  });
+
+  it("limits log writes to both log groups without granting code-bucket access", async () => {
+    const fn = new WebFunction("LogPermissions", {
+      entrypoint: "index.mjs",
+      bundle: out,
+    });
+    await resolved(fn.url);
+    const role = named("LogPermissionsRole", "aws:iam/role:Role");
+    const statements = role.inputs.inlinePolicies.flatMap(
+      (item: any) => JSON.parse(item.policy).Statement,
+    );
+    expect(statements).toHaveLength(1);
+    expect(statements[0].Action.sort()).toEqual([
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+    ]);
+    expect(statements[0].Resource.sort()).toEqual(
+      [
+        `${await resolved(fn.nodes.logGroup.arn)}:*`,
+        `${await resolved(fn.nodes.localLogGroup!.arn)}:*`,
+      ].sort(),
+    );
+    expect(
+      statements.some((statement: any) =>
+        statement.Action.some((action: string) => action.startsWith("s3:")),
+      ),
+    ).toBe(false);
   });
 
   it("pins revisions to a versioned object in a private code bucket", async () => {
@@ -845,11 +906,13 @@ describe("WebFunction", () => {
     await resolved(fn.nodes.role.arn);
     expect(fn.nodes.stack).toBeUndefined();
     expect(fn.nodes.codeBucket).toBeUndefined();
+    expect(fn.nodes.localLogGroup).toBeUndefined();
     expect(fn.arn).toBeUndefined();
     expect(fn.endpointArn).toBeUndefined();
     expect(ofType("aws:cloudformation/stack:Stack")).toHaveLength(0);
     expect(ofType("aws:lambda/function:Function")).toHaveLength(0);
     expect(ofType("aws:s3/bucketObjectv2:BucketObjectv2")).toHaveLength(0);
+    expect(ofType("aws:cloudwatch/logGroup:LogGroup")).toHaveLength(1);
     expect(build).not.toHaveBeenCalled();
     const hint = componentOutputs.mock.calls
       .map(([value]) => value)
@@ -870,6 +933,7 @@ describe("WebFunction", () => {
     expect(template("DevDisabled").Resources.Endpoint.Type).toBe(
       "AWS::Lambda::WebFunctionEndpoint",
     );
+    expect(fn.nodes.localLogGroup).toBeDefined();
     const trust = JSON.parse(
       named("DevDisabledRole", "aws:iam/role:Role").inputs.assumeRolePolicy,
     ).Statement;

@@ -58,7 +58,8 @@ export interface WebFunctionArgs {
    * Environment variables available to your server. Lambda's `AWS_LAMBDA_*` variables
    * and SST's `SST_RESOURCE_*` link variables cannot be overridden.
    * Values are passed as CloudFormation `NoEcho` parameters. Including links, at most
-   * 200 variables can be configured and each non-empty value must fit in 4096 UTF-8 bytes.
+   * 200 variables can be configured. Empty values are rejected and each value must fit
+   * in 4096 UTF-8 bytes.
    * All keys and values, including links and the managed entrypoint, must fit in 32 KiB.
    */
   environment?: FunctionArgs["environment"];
@@ -69,7 +70,11 @@ export interface WebFunctionArgs {
   link?: FunctionArgs["link"];
   /** Permissions added to the execution role, in addition to linked resources. */
   permissions?: FunctionArgs["permissions"];
-  /** Configure esbuild and dependencies, as with `Function`. */
+  /**
+   * Configure esbuild and dependencies, as with `Function`. When `sourcemap` is `true`,
+   * source maps are included in the deployment package; they are not uploaded separately
+   * for SST's event-function log integration.
+   */
   nodejs?: FunctionArgs["nodejs"];
   /** Copy additional files into the deployment package, as with `Function`. */
   copyFiles?: FunctionArgs["copyFiles"];
@@ -144,6 +149,7 @@ export interface WebFunctionArgs {
   /** Transform the underlying resources. */
   transform?: {
     role?: Transform<iam.RoleArgs>;
+    /** Transform the central group. The local group's name and retention follow it. */
     logGroup?: Transform<cloudwatch.LogGroupArgs>;
     stack?: Transform<cloudformation.StackArgs>;
   };
@@ -165,6 +171,11 @@ export interface WebFunctionArgs {
  * and CloudFormation attempts to roll back a failed stack update.
  * The deployment role needs CloudFormation permissions and permissions to manage Lambda
  * web functions, revisions, and endpoints, as well as the IAM, S3, and Logs resources.
+ * The assigned stack and code bucket names are retained across ordinary deployments.
+ * SST manages both the central CloudWatch group and its HomeRegion `.local` group with
+ * the configured retention, and grants the execution role access only to those groups.
+ * The function includes `sst:app` and `sst:stage` tags. AWS revisions and endpoints
+ * inherit these tags from their function.
  *
  * :::caution
  * CloudFormation readiness does not check that your server starts listening. Lambda can
@@ -197,6 +208,7 @@ export class WebFunction extends Component implements Link.Linkable {
   private readonly codeBucketPolicy?: s3.BucketPolicy;
   private readonly role: iam.Role;
   private readonly logGroup: cloudwatch.LogGroup;
+  private readonly localLogGroup?: cloudwatch.LogGroup;
   private readonly devUrl?: Output<string>;
 
   constructor(
@@ -322,6 +334,17 @@ export class WebFunction extends Component implements Link.Linkable {
       ),
     );
     this.logGroup = logGroup;
+    const localLogGroup = dev
+      ? undefined
+      : new cloudwatch.LogGroup(
+          `${name}LocalLogGroup`,
+          {
+            name: interpolate`${logGroup.name}.local`,
+            retentionInDays: logGroup.retentionInDays,
+          },
+          { parent: self, ignoreChanges: ["name"] },
+        );
+    this.localLogGroup = localLogGroup;
 
     const codeBucket = dev
       ? undefined
@@ -401,18 +424,13 @@ export class WebFunction extends Component implements Link.Linkable {
                       ...links,
                       {
                         actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
-                        resources: [interpolate`${logGroup.arn}:*`],
+                        resources: [
+                          interpolate`${logGroup.arn}:*`,
+                          ...(localLogGroup
+                            ? [interpolate`${localLogGroup.arn}:*`]
+                            : []),
+                        ],
                       },
-                      ...(codeBucket
-                        ? [
-                            {
-                              actions: ["s3:GetObject", "s3:GetObjectVersion"],
-                              resources: [
-                                interpolate`${codeBucket.arn}/code.zip`,
-                              ],
-                            },
-                          ]
-                        : []),
                     ].map((item) => ({
                       effect:
                         ("effect" in item ? item.effect : "allow") === "deny"
@@ -802,6 +820,10 @@ export class WebFunction extends Component implements Link.Linkable {
                       // The code bucket has a stable, unique physical name. Log group
                       // transforms must not rename or replace the web function.
                       FunctionName: bucket,
+                      Tags: [
+                        { Key: "sst:app", Value: $app.name },
+                        { Key: "sst:stage", Value: $app.stage },
+                      ],
                     },
                   },
                   Revision: {
@@ -1012,7 +1034,7 @@ export class WebFunction extends Component implements Link.Linkable {
     }
   }
 
-  /** The HTTPS endpoint, or the local URL in `sst dev`. */
+  /** The full HTTPS URL (including `https://`), or the local URL in `sst dev`. */
   public get url(): Output<string> {
     return (
       this.devUrl ??
@@ -1041,6 +1063,7 @@ export class WebFunction extends Component implements Link.Linkable {
       codeBucketPolicy: this.codeBucketPolicy,
       role: this.role,
       logGroup: this.logGroup,
+      localLogGroup: this.localLogGroup,
     };
   }
   /** @internal */
