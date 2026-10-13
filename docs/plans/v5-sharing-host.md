@@ -1,6 +1,6 @@
 # Sharing components, with SST as the host
 
-**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 8 are done.** Each step below is its own commit, so any one of them can be reverted alone.
+**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 9 are done.** Each step below is its own commit, so any one of them can be reverted alone.
 
 ## The goal
 
@@ -172,9 +172,15 @@ Each is its own commit. A step taken from `v5-sharing-deps` names its commit the
 
    Checked: Go tests, with a stand-in registry, for the rule, the install and `sst add`, and the message. And with the CLI, on an app with only `sst.config.ts`: `vercel: "5.4.1"` stopped at `sst install` with the message above. 4.6.1 installed. 4.5.0 was still refused by 4.x's check. With no providers, `sst add vercel` wrote 4.6.1 into the config and installed it.
 
-9. **Run it.**
-   - Locally, with state in a local file: an app without a `package.json`, and an npm and a pnpm app, each using a package. After each step that changes the build (2, 4 and 7), `sst diff` shows no changes on an app deployed before it.
-   - In AWS, on a stage of its own: deploy an app that uses a package, run `sst dev` with a function inside a package's component, then remove it and clean up.
+9. **Run it** (done).
+   - **Locally, with state in a local file.** Three apps were deployed with a CLI built from `v5-sharing`, before any step here, and diffed with one built from the last step: an app with only `sst.config.ts`, and an npm and a pnpm app, each using a package from `node_modules` (pnpm's is a link into its store). None showed changes. The first CLI installed `.sst/platform` with bun 1.2.1, the second with 1.4.2. Then the app with only `sst.config.ts` listed the package under `packages`: the deploy created its resources, and another diff found no changes.
+   - **In AWS, on a stage of the lab app of its own.** A package whose component makes a V5 `Function` from a handler in the package. It finds the handler with `createRequire(import.meta.url).resolve("@acme/greeter/handler")`, so it needs no globals, and that works wherever the package is installed.
+     - With the package listed in the config, the deploy created the function, and it answered from Lambda.
+     - Moved to the app's `package.json`, `sst diff` showed only the function's code changing. esbuild writes the handler's path into the bundle as a comment, and that path changed.
+     - `sst dev`, with the package in each place: a call to the function was answered from the machine, and the CLI built the handler from the package's folder, in `node_modules` and in `.sst/platform/node_modules`.
+     - Removed. The stage's passphrase, sourcemap and state files were deleted after, as SST leaves them. The lab's audit lists the same as before the run.
+
+   **Found: the CLI panicked after deploying a component whose type has two parts,** like `acme:Greeter`, as the guide writes them. Reading the deploy's results, it asked Pulumi for the type's module, and Pulumi fails when there's none. Everything was created and the state was saved by then. But the update wasn't marked finished, and `outputs.json` wasn't written. The CLI now takes the type's first part as its package, which is the same for a type with three. The code reads every resource in the state, so an app's own component written as in the guide hits it too. So would a 4.x app with a Pulumi `ComponentResource` of such a type: `main` and SST have the same line (open question 5).
 
 10. **Record it.** The status here, the log in [v5-progress.md](v5-progress.md), the decision in [v5-components.md](v5-components.md), and [v5-sharing.md](v5-sharing.md). Then `v5-sharing-deps` can be deleted.
 
@@ -186,6 +192,8 @@ Steps 1 and 2 stand alone, and could go to `v5` first. Steps 3 and 4 need step 1
 2. ~~**An older provider version, within SST's major version.**~~ Already refused: 4.x stops with "SST needs 7.48.0 or higher" (`ErrProviderVersionTooLow`). Step 8 added only the upper bound.
 3. **A provider a package needs that the app hasn't added.** The deploy says to run `sst add` (open question 2 in [v5-sharing.md](v5-sharing.md)). Should `sst install` add it instead? A provider's settings, like its region, are in the config's `providers`, so adding one is a change to the config.
 4. **The platform's runtime dependencies in production installs.** An app that lists `sst` in `dependencies`, for `sst/resource`, also gets esbuild, archiver and glob after step 5. Every install of `sst` already brings the CLI's binary, about 96 MB, so they add little. A separate package for authors would keep them out, at the cost of a second package to publish.
+5. **Types with two parts.** Pulumi's convention for a type is three, `package:module:Type`, and SST's components follow it. The CLI handles two now, but other tools may assume three, as Pulumi's own `Module()` does. Should the guide's examples use three, like `acme:index:Uploads`, and `component()` refuse two? And should the CLI's fix go to `main`, and to SST, since 4.x has the same panic?
+6. **A function's code in a package.** The guide doesn't say how a component finds a handler it ships. `createRequire(import.meta.url).resolve()` with the handler in the package's `exports` worked in the deploy and in `sst dev`. Say so in the guide, or give packages a helper?
 
 ## Known limits
 
