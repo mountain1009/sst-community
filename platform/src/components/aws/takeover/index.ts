@@ -11,6 +11,7 @@ import "./apigatewayv2";
 import "./app-sync";
 import "./aurora";
 import "./bucket";
+import "./bus";
 import "./cognito-user-pool";
 import "./cron-v2";
 import "./dsql";

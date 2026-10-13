@@ -30,6 +30,13 @@ Function parts in other components are declared `deferred(Function)` and created
 - The subscriber is parts of the queue. There's no separate subscriber component and no static `subscribe`.
 - **On switch:** the 4.x `QueueLambdaSubscriber` wrapper goes, and the subscriber function's description changes.
 
+## Bus
+
+- **Parts:** `bus`, and by subscriber name `subscriber`, `permission`, `rule`, `target`, `queuePolicy`. The same shape as `SnsTopic`.
+- The static `subscribe` and `subscribeQueue` became `get(name, busName)` and the ordinary methods. The map finds what they created by the bus's own name, as `Dynamo`'s does.
+- A function subscriber's description names the bus's physical name, as in 4.x, so it isn't updated on switch.
+- A queue subscriber is created with the bus's `provider` (4.x used the app's), as in `SnsTopic`.
+
 ## SnsTopic
 
 - **Parts:** `topic`, and by subscriber name `subscriber`, `permission`, `subscription`, `queuePolicy`.

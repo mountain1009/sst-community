@@ -43,14 +43,14 @@ Since 2026-10-09 a 4.x file can change, so `git diff --stat main -- platform/src
 
 ## Status
 
-**Ported (19, plus the Cognito client):** `Alb`, `ApiGatewayV2`, `AppSync`, `Aurora`, `Bucket`, `Cluster`, `CognitoUserPool` (with `CognitoUserPoolClient`), `CronV2`, `Dsql`, `Dynamo`, `Efs`, `Function`, `Mysql`, `Postgres`, `Queue`, `Redis`, `Service`, `SnsTopic`, `Task`.
+**Ported (20, plus the Cognito client):** `Alb`, `ApiGatewayV2`, `AppSync`, `Aurora`, `Bucket`, `Bus`, `Cluster`, `CognitoUserPool` (with `CognitoUserPoolClient`), `CronV2`, `Dsql`, `Dynamo`, `Efs`, `Function`, `Mysql`, `Postgres`, `Queue`, `Redis`, `Service`, `SnsTopic`, `Task`.
 
 **Not ported yet:**
 
 - The sites: `Nextjs`, `Astro`, `Remix`, `SvelteKit`, `SolidStart`, `Nuxt`, `React`, `Analog`, `TanStackStart`, and `StaticSite`.
 - `Vpc`, `Router`, `Cdn`.
 - `MicroVm`, new in 4.x on 2026-10-10.
-- `ApiGatewayV1`, `ApiGatewayWebSocket`, `Auth`, `Bus` (and with it `Bucket.subscribeEventBridge`), `CognitoIdentityPool`, `Email`, `KinesisStream`, `OpenSearch`, `OpenControl`, `Realtime`, `StepFunctions`, `Vector`, `Workflow`.
+- `ApiGatewayV1`, `ApiGatewayWebSocket`, `Auth`, `CognitoIdentityPool`, `Email`, `KinesisStream`, `OpenSearch`, `OpenControl`, `Realtime`, `StepFunctions`, `Vector`, `Workflow`.
 - `Cron` (deprecated in 4.x; see Open questions).
 - The Cloudflare and Vercel components.
 

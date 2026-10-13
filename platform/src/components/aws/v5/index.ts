@@ -8,6 +8,7 @@ export * from "./apigatewayv2";
 export * from "./app-sync";
 export * from "./aurora";
 export * from "./bucket";
+export * from "./bus";
 export * from "./cluster";
 export * from "./cognito-user-pool";
 export * from "./cognito-user-pool-client";
