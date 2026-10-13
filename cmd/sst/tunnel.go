@@ -61,7 +61,7 @@ var CmdTunnel = &cli.Command{
 		}, "\n"),
 	},
 	Run: func(c *cli.Cli) error {
-		if tunnel.NeedsInstall() {
+		if tunnel.NeedsInstall(version) {
 			return util.NewReadableError(nil, "The sst tunnel needs to be installed or upgraded. Run `sudo sst tunnel install`")
 		}
 
@@ -160,7 +160,9 @@ var CmdTunnel = &cli.Command{
 		}
 		pipeRead.Close() // parent doesn't need read end
 		output, _ := io.ReadAll(stderr)
-		tunnelCmd.Wait()
+		if err := tunnelCmd.Wait(); err != nil {
+			slog.Info("tunnel process ended", "error", err)
+		}
 		if strings.Contains(string(output), "password is required") {
 			return util.NewReadableError(nil, "Make sure you have installed the tunnel with `sudo sst tunnel install`")
 		}
@@ -255,13 +257,8 @@ var CmdTunnel = &cli.Command{
 				if port == "" {
 					port = "22"
 				}
-				slog.Info("starting tunnel", "subnet", subnets, "host", host, "port", port)
-				err := tunnel.Start(subnets...)
-				if err != nil {
-					return err
-				}
-				defer tunnel.Stop()
-				slog.Info("tunnel started")
+				// Watch stdin before anything is set up, so a parent that dies while the
+				// interface and routes are being created still stops the tunnel.
 				ctx, cancel := context.WithCancel(c.Context)
 				defer cancel()
 				// Detect parent death via stdin EOF. Only when stdin is the pipe the
@@ -274,6 +271,13 @@ var CmdTunnel = &cli.Command{
 						cancel()
 					}()
 				}
+				slog.Info("starting tunnel", "subnet", subnets, "host", host, "port", port)
+				err := tunnel.Start(subnets...)
+				if err != nil {
+					return err
+				}
+				defer tunnel.Stop()
+				slog.Info("tunnel started")
 				err = tunnel.StartProxy(
 					ctx,
 					user,
