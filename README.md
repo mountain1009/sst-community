@@ -107,7 +107,7 @@ That builds `dist/sst5`, which runs next to a stable `sst`. Use it in an app in 
 ## Working on it
 
 - [Writing V5 components](platform/src/components/README.md) is the guide: parts, args, tests, and how to port a version 4 component.
-- [Write a Component](www/src/content/docs/docs/write-a-component.mdx) is the same for a component in your own app.
+- [Write a Local Component](www/src/content/docs/docs/write-a-local-component.mdx) is the same for a component in your own app, and [Write a Package Component](www/src/content/docs/docs/write-a-package-component.mdx) for one published to npm.
 
 ```bash
 cd platform

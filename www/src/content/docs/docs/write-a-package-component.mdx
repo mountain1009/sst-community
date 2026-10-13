@@ -1,0 +1,248 @@
+---
+title: Write a Package Component
+description: Publish a component to npm, so any app on version 5 can install it.
+---
+
+A component in a package is written the way a [local component](/docs/write-a-local-component/) is. Its parts, args, `link()` and tests work the same. What's different is where it lives: in a repo of its own, published to npm, and installed by each app that uses it.
+
+So it can't read the globals an `sst.config.ts` has, like `sst` and `aws`. It imports them. And when an app runs it, what it imports is the app's own SST and providers, not copies of its own.
+
+---
+
+## Set it up
+
+The package's repo installs `sst`, Pulumi and the providers the component uses as dev dependencies. It needs no `sst.config.ts`.
+
+```bash
+npm install -D sst@npm:@sst-community/sst@^5.0.0-0 @pulumi/pulumi @pulumi/aws @pulumi/cloudflare typescript
+```
+
+`sst/components`, `sst/components/aws` and the other groups come from it, with their types, and `sst/testing` too. A component that uses SST's components of a provider, like `sst/components/aws`, also needs the providers that group loads. For `sst/components/aws` they're `@pulumi/aws`, `@pulumi/command`, `@pulumi/docker-build`, `@pulumi/random` and `@pulumi/tls`. `node_modules/sst/platform/package.json` lists each group's under `groups`.
+
+`tsc` compiles the component to JavaScript and a `.d.ts`.
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"]
+}
+```
+
+---
+
+## Write it
+
+Import what the component uses: the components from `sst/components`, and each provider from its package. `sst/components` has what SST's components share, and `sst/components/aws`, `sst/components/cloudflare` and `sst/components/vercel` have the components of each provider. Together they're what the `sst` global is.
+
+```ts title="src/index.ts"
+import { component, type ComponentArgs, type LinkDefinition } from "sst/components";
+import type { ComponentResourceOptions } from "@pulumi/pulumi";
+import * as aws from "@pulumi/aws";
+import * as cloudflare from "@pulumi/cloudflare";
+
+const parts = {
+  identity: aws.ses.DomainIdentity,
+  verification: cloudflare.DnsRecord,
+};
+
+export interface EmailDomainArgs extends ComponentArgs<typeof parts> {
+  domain: string;
+  zoneId: string;
+}
+
+export class EmailDomain extends component("acme:index:EmailDomain", parts) {
+  constructor(name: string, args: EmailDomainArgs, opts?: ComponentResourceOptions) {
+    super(name, args, opts);
+
+    const identity = this.part("identity", { domain: args.domain });
+    this.part("verification", {
+      zoneId: args.zoneId,
+      name: `_amazonses.${args.domain}`,
+      type: "TXT",
+      content: identity.verificationToken,
+      ttl: 60,
+    });
+  }
+
+  link(): LinkDefinition {
+    return { properties: { domain: this.nodes.identity.domain } };
+  }
+}
+```
+
+Give the component a type with the package's name in it, like `acme:index:EmailDomain`. It's how an app's state knows the component, so two packages shouldn't share one.
+
+---
+
+## Dependencies
+
+Say which versions of SST and which providers the component works with, as peer dependencies.
+
+```json title="package.json"
+{
+  "name": "@acme/email-domain",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "peerDependencies": {
+    "sst": ">=5.0.0-0",
+    "@pulumi/aws": "^7",
+    "@pulumi/cloudflare": "^6"
+  },
+  "peerDependenciesMeta": {
+    "@pulumi/aws": { "optional": true },
+    "@pulumi/cloudflare": { "optional": true }
+  }
+}
+```
+
+An app that installs the package gets its components checked against these when it deploys. If the app doesn't have one of the providers, the deploy stops and says to add it with `sst add`. The same happens if the app's SST or one of its providers is a version outside the range. The providers are optional so that a package manager doesn't install another copy of each in the app, which has its own. `>=5.0.0-0` includes the prereleases of version 5.
+
+When an app runs the component, its `sst/components` and its providers are the app's own, not the ones the package's repo installed.
+
+Anything else the package needs when it runs goes in `dependencies`, like a library a shipped handler imports. The app's build bundles it from wherever the package manager put it.
+
+`sst`, `@pulumi/pulumi` and the providers never go there. A second copy of one doesn't work with the app's: the app's deploy only sees what's made with its own copies.
+
+| Field | What goes in it |
+| --- | --- |
+| `peerDependencies` | `sst` and the providers. The app's own are used, and checked against the range. |
+| `peerDependenciesMeta` | The providers, marked `optional`, so they aren't installed again. |
+| `devDependencies` | What the package's repo builds and tests with: `sst`, Pulumi, the providers, TypeScript. |
+| `dependencies` | Anything else the package needs when it runs. |
+
+---
+
+## Ship a function's code
+
+A component that creates a function can ship its handler in the package. Export the file, and find it by the package's name, as Node would.
+
+```json title="package.json"
+"exports": {
+  ".": "./dist/index.js",
+  "./handler": "./dist/handler.js"
+}
+```
+
+```ts title="src/index.ts"
+import { createRequire } from "node:module";
+import { component } from "sst/components";
+import { v5 } from "sst/components/aws";
+import type { ComponentResourceOptions } from "@pulumi/pulumi";
+
+const handler = createRequire(import.meta.url)
+  .resolve("@acme/greeter/handler")
+  .replace(/\.js$/, ".handler");
+
+export class Greeter extends component("acme:index:Greeter", { api: v5.Function }) {
+  constructor(name: string, args = {}, opts?: ComponentResourceOptions) {
+    super(name, args, opts);
+    this.part("api", { handler, url: true });
+  }
+}
+```
+
+It finds the file wherever the app installed the package: in its `node_modules`, or in `.sst/platform` when the app lists it under `packages`. It works in `sst dev` too. A path relative to the component's own file doesn't work. The app bundles the package into its config when it deploys, so there `import.meta.url` is the bundle's.
+
+---
+
+## Test it
+
+Test the component with `mock()` from `sst/testing`, as in [Test it](/docs/write-a-local-component/#test-it) for a local component. It works in vitest, `bun test` and `node --test`, with nothing to set up.
+
+```ts title="test/email-domain.test.ts"
+import { expect, test } from "vitest";
+import { mock } from "sst/testing";
+
+const app = await mock();
+const { EmailDomain } = await import("../src/index");
+
+test("verifies the domain in Cloudflare", async () => {
+  app.reset();
+  new EmailDomain("Mail", { domain: "example.com", zoneId: "Z1" });
+  await app.settle();
+
+  const record = app.resources.find((r) => r.type === "cloudflare:index/dnsRecord:DnsRecord");
+  expect(record?.inputs.name).toBe("_amazonses.example.com");
+});
+```
+
+`mock()` gives the test `sst` with the components of each provider whose packages are installed, like `sst.aws`. Using one that isn't fails, and says what to install.
+
+---
+
+## Publish it
+
+Compile it, and publish it as you would any package.
+
+```bash
+npx tsc
+npm publish
+```
+
+A scoped package, like `@acme/email-domain`, is private on npm unless you publish it with `--access public`.
+
+---
+
+## Use it in an app
+
+In an app, install the package, add the providers it needs, and import it in `run()`.
+
+```ts title="sst.config.ts"
+const { EmailDomain } = await import("@acme/email-domain");
+
+const email = new EmailDomain("Mail", {
+  domain: "example.com",
+  zoneId: "023e105f4ecef8ad9ca31a8372d0c353",
+  transform: { verification: { ttl: 300 } },
+});
+```
+
+An app without a `package.json` lists the package in its config instead, under `packages`. A command like `sst deploy` installs it with the providers.
+
+```ts title="sst.config.ts" {6}
+app(input) {
+  return {
+    name: "my-app",
+    home: "aws",
+    providers: { cloudflare: "6.15.0" },
+    packages: { "@acme/email-domain": "1.2.0" },
+  };
+},
+```
+
+For TypeScript to read the package's types, the app's `tsconfig.json` extends `.sst/tsconfig.json`, which `sst install` writes. It says where the app's SST and providers are, in `.sst/platform`.
+
+```json title="tsconfig.json" {2}
+{
+  "extends": "./.sst/tsconfig.json",
+  "compilerOptions": {
+    // ...
+  }
+}
+```
+
+:::note
+`paths` in your own `tsconfig.json` replace the ones it extends. If you have some, add the entries from `.sst/tsconfig.json` to yours. `sst install` changes them when you add a provider.
+:::
+
+If the app's tests load the package, give vitest the same, so a test uses the app's SST and providers, as a deploy does.
+
+```ts title="vitest.config.ts"
+import { defineConfig } from "vitest/config";
+import { alias } from "./.sst/platform/src/testing/vitest";
+
+export default defineConfig({ resolve: { alias } });
+```
+
+A component can also be written with the `sst` and provider globals, as in your app, and published as TypeScript. Then the app needs no change to its `tsconfig.json`, but nothing in the package says what it depends on.

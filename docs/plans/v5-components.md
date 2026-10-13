@@ -105,6 +105,7 @@ Before the sites, the docs generator needed to read arg types from helper files.
 
 - `sst dev` with a `Service` or `Task`. Live functions were run on 2026-10-01 and work. On 2026-10-13, a 4.x app's dev stage went from a 4.x CLI to `sst5 dev` and back.
 - `get` and `existing` against real AWS, and a custom `provider`.
+- A shipped handler that imports a library from the package's `dependencies`, deployed.
 - Creating the databases fresh with v5 (in the AWS test they were created by 4.x and taken over).
 - `CognitoUserPool` and `AppSync` custom domains, and a multi-region `Dsql`.
 - How the SST Console treats v5 functions. It presumably finds functions by type, which is now the same.
