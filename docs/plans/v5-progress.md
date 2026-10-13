@@ -188,6 +188,29 @@ Installing the providers in the app's `package.json` was then tried on `v5-shari
 
 The AWS run found what the mock can't: the CLI read every resource type in the state as having three parts. The deploy had finished, but the update wasn't marked finished and `outputs.json` wasn't written.
 
+## 2026-10-12
+
+### `main` merged in, through v4.20.0 and after
+
+`435998070` brings in v4.19.0, v4.20.0 and `main` up to `d542ad14b`: MicroVm, ElastiCache Serverless, Bucket EventBridge notifications, and fixes to `Function`, `Bucket` and `sst dev`. `component.ts` conflicted, since v5 keeps the naming rules as data, so `main`'s five new rules went into `naming-rules.ts`. The typecheck passed with one change in the merge: the v5 `Bucket` reads its notification type from 4.x's args, whose `notifications` are optional now.
+
+Three of `main`'s changes to 4.x failed the takeover check, or broke a port where the check can't see:
+
+| Commit | What |
+| --- | --- |
+| `59715bb72` | `Function`'s role trusts the account root only in `sst dev` (#95). 4.x's check never passed before, so every role trusted it, and the port had reproduced that (decided 2026-09-30, changed now). |
+| `2a3aac62b` | A function on a shared `bundle` reads its linked resources from `.sst/<name>/resource.enc`, and its zip keeps only its own folder (#89). The CLI writes the file there now, so a v5 function with a `bundle` would have failed at cold start. The check can't see it: a takeover case with a `bundle` and a test that reads the zip do. |
+| `4dd90c8d4` | A `cloudfront` bucket can only be read by distributions in the same account. |
+
+And two features `main` added to components that have ports:
+
+| Commit | What |
+| --- | --- |
+| `133bde1af` | `Redis` takes `serverless` (#91): a serverless cache, its `default` user and user group, as parts. The cluster's parts are optional now. |
+| `c87fb9d75` | `Bucket`'s `notify` takes `eventBridge` (#85). The static `subscribeEventBridge` waits for a v5 `Bus`. |
+
+`MicroVm` is new in 4.x and has no port yet.
+
 ## What the harness can and can't see
 
 It records what's registered with the engine and compares, between a 4.x component and its v5 port: each resource's address (through aliases, as Pulumi resolves them), inputs, deploy options, registered outputs, what a function is built from, and what depends on what.

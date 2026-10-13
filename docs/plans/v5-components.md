@@ -49,7 +49,8 @@ Since 2026-10-09 a 4.x file can change, so `git diff --stat main -- platform/src
 
 - The sites: `Nextjs`, `Astro`, `Remix`, `SvelteKit`, `SolidStart`, `Nuxt`, `React`, `Analog`, `TanStackStart`, and `StaticSite`.
 - `Vpc`, `Router`, `Cdn`.
-- `ApiGatewayV1`, `ApiGatewayWebSocket`, `Auth`, `Bus`, `CognitoIdentityPool`, `Email`, `KinesisStream`, `OpenSearch`, `OpenControl`, `Realtime`, `StepFunctions`, `Vector`, `Workflow`.
+- `MicroVm`, new in 4.x on 2026-10-10.
+- `ApiGatewayV1`, `ApiGatewayWebSocket`, `Auth`, `Bus` (and with it `Bucket.subscribeEventBridge`), `CognitoIdentityPool`, `Email`, `KinesisStream`, `OpenSearch`, `OpenControl`, `Realtime`, `StepFunctions`, `Vector`, `Workflow`.
 - `Cron` (deprecated in 4.x; see Open questions).
 - The Cloudflare and Vercel components.
 
