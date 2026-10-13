@@ -1,6 +1,6 @@
 # Sharing components, with SST as the host
 
-**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 7 are done.** Each step below is its own commit, so any one of them can be reverted alone.
+**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 8 are done.** Each step below is its own commit, so any one of them can be reverted alone.
 
 ## The goal
 
@@ -164,7 +164,13 @@ Each is its own commit. A step taken from `v5-sharing-deps` names its commit the
 
    **Found while building it: SST's bun hung.** bun 1.2.1, which SST pinned, ran at full CPU without end installing a package from a `file:` tarball in `.sst/platform`. It did every time the package's peer dependencies conflicted with what the platform installs, here `@pulumi/random` `^5` against 4.21.2, and once without a conflict. A command just stops there, before the deploy's check could say what's wrong. On its own, with only the two packages, bun 1.2.1 hung too, with `--omit peer` as well. bun 1.4.2 installs the same in a second and warns about the peer. npm stops with `ERESOLVE`. A provider with a conflicting peer can hit the same, on 4.x too. So SST pins bun 1.4.2 now, released 2026-09-05. SST runs bun only to install `.sst/platform`. Checked, on an app with local state, random, tls, a file using the globals and a package: deployed with bun 1.2.1, the CLI with 1.4.2 installed the platform again and `sst diff` showed no changes. Every package both installed was at the same version, the providers included. Only where a few copies of `@types/node` are nested differed. The lockfile stayed `bun.lockb`.
 
-8. **A provider version in another major version is refused.** Take the rule from `64fe7d481`: SST's components are written for one major version of each provider they use (before 1.0, one minor version). `sst install` refuses a version in the config outside it, and says which to use. A provider SST's components don't use isn't checked. An older version is refused already, by 4.x's check (open question 2). Checked: Go tests, and an app setting `aws: "6.0.0"` stopping at install with the message.
+8. **A provider version in another major version is refused** (done). The rule is from `64fe7d481`: SST's components are written for one major version of each provider they use (before 1.0, one minor version).
+   - `sst install` refuses a version in the config outside it, after 4.x's check for an older one (open question 2). It says which to use: "You specified version 5.4.1 of the "vercel" provider. SST's components are built for 4.x, and a new major version can remove what they use. Use a 4.x version, 4.6.0 or higher."
+   - A provider SST's components don't use isn't checked, and neither is one the config gives its own `package`.
+
+   What it took besides: **`sst add` picked a version the install would refuse.** It wrote the version npm tags latest into the config, and for vercel that's 5.4.1, a major version past SST's 4.6.0. For a provider SST's components use, it now picks the newest version in their major version, here 4.6.1. Prereleases aren't picked. Where latest is already in it, as for aws, it's what `sst add` picked before. The CLI reference and the providers page say so, and their examples use an aws 7 version, since SST already refused the 6 they showed.
+
+   Checked: Go tests, with a stand-in registry, for the rule, the install and `sst add`, and the message. And with the CLI, on an app with only `sst.config.ts`: `vercel: "5.4.1"` stopped at `sst install` with the message above. 4.6.1 installed. 4.5.0 was still refused by 4.x's check. With no providers, `sst add vercel` wrote 4.6.1 into the config and installed it.
 
 9. **Run it.**
    - Locally, with state in a local file: an app without a `package.json`, and an npm and a pnpm app, each using a package. After each step that changes the build (2, 4 and 7), `sst diff` shows no changes on an app deployed before it.
@@ -177,13 +183,14 @@ Steps 1 and 2 stand alone, and could go to `v5` first. Steps 3 and 4 need step 1
 ## Open questions
 
 1. ~~**The config field for packages.**~~ Decided 2026-10-12: `packages` in `app()`, beside `providers`, with a version required (step 7).
-2. ~~**An older provider version, within SST's major version.**~~ Already refused: 4.x stops with "SST needs 7.48.0 or higher" (`ErrProviderVersionTooLow`). Step 8 adds only the upper bound.
+2. ~~**An older provider version, within SST's major version.**~~ Already refused: 4.x stops with "SST needs 7.48.0 or higher" (`ErrProviderVersionTooLow`). Step 8 added only the upper bound.
 3. **A provider a package needs that the app hasn't added.** The deploy says to run `sst add` (open question 2 in [v5-sharing.md](v5-sharing.md)). Should `sst install` add it instead? A provider's settings, like its region, are in the config's `providers`, so adding one is a change to the config.
 4. **The platform's runtime dependencies in production installs.** An app that lists `sst` in `dependencies`, for `sst/resource`, also gets esbuild, archiver and glob after step 5. Every install of `sst` already brings the CLI's binary, about 96 MB, so they add little. A separate package for authors would keep them out, at the cost of a second package to publish.
 
 ## Known limits
 
 - **Pulumi's version is the CLI's.** The CLI runs Pulumi's engine at that version, so an app can't choose it, as in 4.x.
+- **A provider's next major version waits for a release of SST.** An app can't take one for a provider SST's components use, vercel 5 for example, even if it doesn't use those components. 4.x installed it, so an app that has one in its config is refused when it moves to v5, and has to go back to SST's major version.
 - **Renovate and Dependabot don't see the versions in `sst.config.ts`.** A custom manager in Renovate could.
 - **A JavaScript app has SST's components twice on disk:** in `.sst/platform`, which the deploy uses, and in `node_modules/sst`, which nothing in the app uses. They're the same version when the CLI hands off to the app's `sst`.
 - **The CLI hands off to the app's `sst` only from `./node_modules/.bin/sst`.** In a monorepo where `sst` is installed at the root, the CLI on the path runs instead, as in 4.x.

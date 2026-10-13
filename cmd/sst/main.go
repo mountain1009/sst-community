@@ -518,7 +518,7 @@ var root = &cli.Command{
 					"  providers: {",
 					"    aws: {",
 					"      package: \"@pulumi/aws\",",
-					"      version: \"6.27.0\"",
+					"      version: \"7.50.0\"",
 					"    }",
 					"  }",
 					"}",
@@ -530,14 +530,14 @@ var root = &cli.Command{
 					"Running `sst add aws` above is the same as manually adding the provider to your config and running `sst install`.",
 					":::",
 					"",
-					"By default, the latest version of the provider is installed. If you want to use a specific version, you can change it in your config.",
+					"By default, the latest version of the provider is installed. For a provider SST's own components use, like `aws`, it's the latest version in the major version they're built for. If you want to use a specific version, you can change it in your config.",
 					"",
 					"```ts title=\"sst.config.ts\"",
 					"{",
 					"  providers: {",
 					"    aws: {",
 					"      package: \"@pulumi/aws\",",
-					"      version: \"6.26.0\"",
+					"      version: \"7.49.0\"",
 					"    }",
 					"  }",
 					"}",
@@ -599,7 +599,7 @@ var root = &cli.Command{
 						return err
 					}
 				}
-				entry, err := project.FindProvider(pkg, "latest", pkg)
+				entry, err := project.FindProviderToAdd(pkg)
 				if err != nil {
 					return util.NewReadableError(err, "Could not find provider "+pkg)
 				}

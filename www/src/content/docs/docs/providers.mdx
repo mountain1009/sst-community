@@ -82,11 +82,13 @@ By default, SST installs the latest version. If you want to use a specific versi
 {
   providers: {
     aws: {
-      version: "6.27.0"
+      version: "7.50.0"
     }
   }
 }
 ```
+
+For a provider SST's own components use, like `aws` or `cloudflare`, the version has to be the one SST comes with or newer, in the same major version. A new major version can remove what the components use, so `sst install` refuses it and says which versions to use.
 
 If you make any changes to the `providers` in your config, you'll need to run `sst install`.
 

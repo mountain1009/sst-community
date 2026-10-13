@@ -29,6 +29,31 @@ func (err *ErrProviderVersionTooLow) Error() string {
 	return "provider version too low"
 }
 
+// A version of a provider SST's components use, in another major version than
+// the one they're built for. A new major version can remove or rename what
+// they use.
+type ErrProviderMajorVersion struct {
+	Name    string
+	Version string
+	Needed  string
+	Line    string
+}
+
+func (err *ErrProviderMajorVersion) Error() string {
+	return "provider major version not supported"
+}
+
+// The versions of a provider SST's components are built for, given the one
+// SST comes with: its major version, or before 1.0 its minor version, where a
+// new minor version is the new major one. Returns them like "7.x", and whether
+// version is one of them.
+func providerLine(version *semver.Version, built *semver.Version) (string, bool) {
+	if built.Major() == 0 {
+		return fmt.Sprintf("0.%d.x", built.Minor()), version.Major() == 0 && version.Minor() == built.Minor()
+	}
+	return fmt.Sprintf("%d.x", built.Major()), version.Major() == built.Major()
+}
+
 func (p *Project) NeedsInstall() bool {
 	if _, err := os.Stat(filepath.Join(p.PathPlatformDir(), "node_modules")); err != nil {
 		return true
@@ -281,6 +306,15 @@ func (p *Project) generateProviderLock() error {
 						Needed:  match,
 					}
 				}
+				if line, ok := providerLine(semver.MustParse(result.Version), semver.MustParse(match)); !ok {
+					results <- *result
+					return &ErrProviderMajorVersion{
+						Name:    result.Name,
+						Version: result.Version,
+						Needed:  match,
+						Line:    line,
+					}
+				}
 			}
 			results <- *result
 			return nil
@@ -330,6 +364,50 @@ func FindProvider(provider string, version string, pkg string) (*ProviderLockEnt
 		}, nil
 	}
 	return nil, fmt.Errorf("provider %s not found", provider)
+}
+
+// The provider `sst add` adds, at its latest version, or for a provider SST's
+// components use, the latest of the versions they're built for
+func FindProviderToAdd(provider string) (*ProviderLockEntry, error) {
+	entry, err := FindProvider(provider, "latest", provider)
+	if err != nil {
+		return nil, err
+	}
+	pkg, err := platform.PackageJson()
+	if err != nil {
+		return nil, err
+	}
+	match, ok := pkg.Dependencies[entry.Package]
+	if !ok {
+		return entry, nil
+	}
+	latest, built := semver.MustParse(entry.Version), semver.MustParse(match)
+	if _, ok := providerLine(latest, built); ok && !latest.LessThan(built) {
+		return entry, nil
+	}
+	versions, err := npm.Versions(npm.LoadRegistry(), entry.Package)
+	if err != nil {
+		return nil, err
+	}
+	entry.Version = newestInLine(match, versions)
+	return entry, nil
+}
+
+// The newest of the versions in the line SST's components are built for, and
+// not older than the one SST comes with. Prereleases aren't taken.
+func newestInLine(built string, versions []string) string {
+	want := semver.MustParse(built)
+	newest := want
+	for _, version := range versions {
+		candidate, err := semver.NewVersion(version)
+		if err != nil || candidate.Prerelease() != "" || !candidate.GreaterThan(newest) {
+			continue
+		}
+		if _, ok := providerLine(candidate, want); ok {
+			newest = candidate
+		}
+	}
+	return newest.Original()
 }
 
 func (p *Project) writeProviderLock() error {

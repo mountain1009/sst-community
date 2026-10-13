@@ -52,6 +52,9 @@ var transformers = []ErrorTransformer{
 	match(func(err *project.ErrProviderVersionTooLow) string {
 		return fmt.Sprintf("You specified version %s of the \"%s\" provider. SST needs %s or higher.", err.Version, err.Name, err.Needed)
 	}),
+	match(func(err *project.ErrProviderMajorVersion) string {
+		return fmt.Sprintf("You specified version %s of the \"%s\" provider. SST's components are built for %s, and a new major version can remove what they use. Use a %s version, %s or higher.", err.Version, err.Name, err.Line, err.Line, err.Needed)
+	}),
 	match(func(err *project.ErrVersionMismatch) string {
 		return fmt.Sprintf("You are using v%s which does not match v%s in your \"sst.config.ts\".", err.Needed, err.Received)
 	}),
