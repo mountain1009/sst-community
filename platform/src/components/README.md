@@ -206,11 +206,14 @@ the component reads its args.
   new name and say where it was: `sst.takeover(Uploads, { moved: { files: "bucket" } })`.
 - **Sharing it as a package.** A package imports `component` and the rest from
   `sst/components`, SST's components for a provider from its group, like
-  `sst/components/aws`, and each provider from its package. The CLI resolves them
-  to the app's own platform, so together they're what the `sst` global is.
-  `.sst/tsconfig.json`, which `sst install` writes, does the same for TypeScript. The
-  package's peer dependencies say which SST and which providers it needs, and a deploy
-  checks them. "Share it" on the docs page has the setup.
+  `sst/components/aws`, and each provider from its package. Its repo installs `sst`,
+  Pulumi and those providers as dev dependencies, and builds and tests with ordinary
+  tools, with no `sst.config.ts`. In an app, the CLI resolves the same imports to the
+  app's own platform, so together they're what the `sst` global is.
+  `.sst/tsconfig.json`, which `sst install` writes, does the same for TypeScript, and
+  the vitest `alias` for the app's tests. The package's peer dependencies say which SST
+  and which providers it needs, and a deploy checks them. "Share it" on the docs page
+  has the setup.
 - **`sst/components` is a public API.** What `core.ts` and each group export is what
   packages build on. Adding to it is fine. Removing an export or changing what one
   accepts breaks them, so it waits for a major version. `component()` returns a named

@@ -120,6 +120,21 @@ go build -ldflags "-X main.version=<version> -X github.com/sst/sst/v3/cmd/sst/mo
 - Run `./dist/sst version` from outside the repo. Inside it, the binary hands off to the `sst` in `node_modules`.
 - `.gitignore` matches `cmd/sst`. Stage changes there with `git add -u`, not by path.
 
+### A component package's repo on a dev build (v5)
+
+In v5 the `sst` package carries SST's components, which a component package's repo builds and tests against. A dev build has no published package, so pack one from the repo:
+
+```bash
+cd platform && bun run build && cd ..   # the steps before its Docker build are enough
+cd sdk/js && bun run build && bun ./scripts/platform.ts <folder> && cd ../..
+# in the package's repo
+npm install -D <folder>/sst-0.0.0.tgz
+```
+
+- After a change to the platform, build it, pack again and install the tarball again. Install a tarball, not a link to `sdk/js`: through a link, SST's components would load Pulumi and the providers from this repo's `node_modules` instead of the package repo's.
+- The pack stops if one of the package's exports doesn't load in plain Node.
+- An app doesn't use these: its deploy bundles the copy of the platform in `.sst/platform`.
+
 ## Updating Pulumi and the providers
 
 The versions are pinned in two places: the `@pulumi/*` packages in `platform/package.json`, and `pulumi/pkg/v3` and `pulumi/sdk/v3` in `go.mod`.

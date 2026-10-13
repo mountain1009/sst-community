@@ -20,10 +20,10 @@ describe("sstGlobal()", () => {
     });
     expect(typeof sst.aws.Bucket).toBe("function");
     expect(() => sst.cloudflare.Worker).toThrow(
-      "sst.cloudflare needs @sst-test/not-installed, which the app hasn't installed. To test what uses it, install it as a dev dependency.",
+      "sst.cloudflare needs @sst-test/not-installed, which isn't installed here. In a component package's repo, install it as a dev dependency. In an app, use the sst/testing in .sst/platform, where SST's providers are installed.",
     );
     expect(() => sst.vercel).toThrow(
-      "sst.vercel needs @sst-test/not-installed and @sst-test/also-not-installed, which the app hasn't installed. To test what uses it, install them as dev dependencies.",
+      "sst.vercel needs @sst-test/not-installed and @sst-test/also-not-installed, which aren't installed here. In a component package's repo, install them as dev dependencies. In an app, use the sst/testing in .sst/platform, where SST's providers are installed.",
     );
     expect(Object.keys(sst)).toContain("vercel");
   });

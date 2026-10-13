@@ -1,6 +1,6 @@
 # Sharing components, with SST as the host
 
-**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 5 are done.** Each step below is its own commit, so any one of them can be reverted alone.
+**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 6 are done.** Each step below is its own commit, so any one of them can be reverted alone.
 
 ## The goal
 
@@ -136,7 +136,15 @@ Each is its own commit. A step taken from `v5-sharing-deps` names its commit the
 
    Leave out step 8's CLI changes. An app's deploy still builds from `.sst/platform`, so nothing requires the package and the CLI to be the same version. Checked: the pack loads every export in plain Node, the groups included, and stops when one fails to load (tried by breaking one). Packed, it's 1.2 MB, 6.4 MB unpacked, and adds esbuild, archiver and glob to the SDK's dependencies.
 
-6. **A package's repo with ordinary tools.** With the packed `sst` and no `sst.config.ts`, `tsc` emits the package's declarations, and vitest, `node --test` and `bun test` pass. Then the docs: "Share it" in the component guide and the rulebook stop telling an author to run `sst install` and extend `.sst/tsconfig.json`. An app keeps both, and its tests keep the `alias`, since its providers are in `.sst/platform`.
+6. **A package's repo with ordinary tools** (done). With the packed `sst` and no `sst.config.ts`, `tsc` emits the package's declarations, and vitest, `node --test` and `bun test` pass. Then the docs: "Share it" in the component guide and the rulebook stop telling an author to run `sst install` and extend `.sst/tsconfig.json`. An app keeps both, and its tests keep the `alias`, since its providers are in `.sst/platform`.
+
+   Checked, in a repo with the packed `sst`, Pulumi and the aws group's providers installed from npm, and nothing else of SST's:
+   - One copy of `@pulumi/pulumi`. `tsc` emitted a `.d.ts` that names only `sst/components`, `sst/components/aws` and Pulumi, with the component's outputs typed.
+   - A component with a V5 `Bucket` from `sst/components/aws` as a part, and a role for each team: vitest 5 and `bun test` ran it from the source, and `node --test` from what `tsc` built. Each recorded the bucket, its four resources and the roles, named for the app and stage, and the mock's `sst.aws.Bucket` was the one the package imports.
+   - The guide's example, the component and its test as written, passed with `@pulumi/cloudflare` added.
+   - Without `@pulumi/command`, one of the aws group's providers, importing `sst/components/aws` failed with Node's own `Cannot find package '@pulumi/command'`. The guide says to install a group's providers, and where they're listed.
+
+   The message `mock()` gives for a group whose providers aren't installed said "the app hasn't installed" them. It now says what to do in a package's repo, and in an app. `MAINTAINING.md` says how to pack `sst` for a dev build.
 
 7. **Packages listed in the config,** for an app without a `package.json`:
    - A field in `app()`, beside `providers` (open question 1).
@@ -172,6 +180,8 @@ Steps 1 and 2 stand alone, and could go to `v5` first. Steps 3 and 4 need step 1
 - **A JavaScript app has SST's components twice on disk:** in `.sst/platform`, which the deploy uses, and in `node_modules/sst`, which nothing in the app uses. They're the same version when the CLI hands off to the app's `sst`.
 - **The CLI hands off to the app's `sst` only from `./node_modules/.bin/sst`.** In a monorepo where `sst` is installed at the root, the CLI on the path runs instead, as in 4.x.
 - **The limits of `.sst/tsconfig.json`** in [v5-sharing.md](v5-sharing.md) still apply to apps.
+- **A package's repo needs `skipLibCheck`.** Without it, `tsc` finds 45 errors in SST's declarations: types from providers the repo doesn't install, like cloudflare's from `sst/components/aws`, and a `T` that `cloudflare/ai.d.ts` doesn't declare.
+- **A package that uses a group installs all of that group's providers,** `@pulumi/command` and the rest for `sst/components/aws`, though it only uses aws. Without one, the import fails with Node's own message, not SST's.
 - **Nothing can be published** until the release path for 5.x is settled ("Not done yet" 1 in [v5-sharing.md](v5-sharing.md)).
 
 ## What comes from v5-sharing-deps

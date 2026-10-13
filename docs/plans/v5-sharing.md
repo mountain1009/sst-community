@@ -25,7 +25,7 @@ import { component, type ComponentArgs } from "sst/components";
 import * as aws from "@pulumi/aws";
 ```
 
-Both resolve to the app's own copies in `.sst/platform`, at deploy time and when type-checking. So there's one framework and one copy of each provider, and they're the ones the globals are. Apps keep the globals.
+In an app, both resolve to the app's own copies in `.sst/platform`, at deploy time and when type-checking. So there's one framework and one copy of each provider, and they're the ones the globals are. Apps keep the globals. The package's own repo installs `sst`, Pulumi and the providers as dev dependencies, and builds and tests against them with ordinary tools, with no `sst.config.ts` (since [v5-sharing-host.md](v5-sharing-host.md), step 6).
 
 | Piece | Where |
 | --- | --- |
@@ -33,11 +33,12 @@ Both resolve to the app's own copies in `.sst/platform`, at deploy time and when
 | Reading `app()` doesn't load the platform's or the providers' modules that `run()` code imports. That build runs before they're installed, and esbuild moves external imports to the top of the bundle. | `pkg/js/js.go` (`NotLoaded`) |
 | Globals are imported under private names and pointed at with `define`, so a file can import a provider as `aws` itself. `.mjs`/`.mts` files get them. `.cjs`/`.cts` files are left as they are. | `pkg/js/js.go` |
 | The platform ships its types as `.d.ts` (`dist/types`, with declaration maps), and `config.d.ts` reads them. A CLI built without them falls back to the source. | `platform/tsconfig.types.json`, `platform/scripts/build`, `pkg/project/install.go`, `pkg/project/tsconfig.go` |
-| `sst install` writes `.sst/tsconfig.json`, with `paths` for `sst/components` and its groups, `sst/testing` and every installed provider. An app or a package repo extends it. | `pkg/project/tsconfig.go` |
+| `sst install` writes `.sst/tsconfig.json`, with `paths` for `sst/components` and its groups, `sst/testing` and every installed provider. An app extends it. | `pkg/project/tsconfig.go` |
+| The `sst` package has SST's components compiled to JavaScript, with their types and `sst/testing`, for a package's repo. An app's deploy doesn't use them. | `sdk/js/scripts/platform.ts`, `sdk/js/package.json` |
 | `component()` returns a named type, `ComponentClass`. The part types are exported (`ManyPart`, `OptionalPart`, `NamedPart`, `DeferredPart`). `partHandle` has a type annotation so the platform compiles to `.d.ts`. | `platform/src/components/parts-component.ts`, `core.ts` |
 | A deploy checks each package that imports `sst/components` or one of its groups: its `peerDependencies` on `sst` against the CLI, and on providers against the app's. | `pkg/project/packages.go` |
 | "X is not defined" says how to add a provider, for code that uses the globals | `platform/src/auto/run.ts` |
-| `alias` for a package's vitest config. `mock()` gives the `sst` global the groups whose providers are installed, and says what to install when a test uses another. | `platform/src/testing/vitest.ts`, `platform/src/testing/global.ts` |
+| `alias` for an app's vitest config, when its tests load a package. `mock()` gives the `sst` global the groups whose providers are installed, and says what to install when a test uses another. | `platform/src/testing/vitest.ts`, `platform/src/testing/global.ts` |
 | `sst upgrade` and `sst init` pick the newest version in the CLI's own major version, with prereleases only from a prerelease. For 4.x that is what `latest` is today. A dev build keeps using `latest`. | `pkg/npm/versions.go`, `pkg/global/upgrade.go`, `pkg/project/create.go` |
 | Docs: "Share it" in the component guide, and two rules in the rulebook | `www/.../write-a-component.mdx`, `platform/src/components/README.md` |
 

@@ -525,23 +525,18 @@ export class EmailDomain extends component("acme:EmailDomain", parts) {
 
 #### Set it up
 
-The package's repo is an app too, with the providers the component uses.
+The package's repo installs `sst`, Pulumi and the providers the component uses as dev dependencies. It needs no `sst.config.ts`.
 
-```ts title="sst.config.ts"
-/// <reference path="./.sst/platform/config.d.ts" />
-export default $config({
-  app() {
-    return { name: "email-domain", home: "aws", providers: { cloudflare: "6.15.0" } };
-  },
-  async run() {},
-});
+```bash
+npm install -D sst@npm:@sst-community/sst@^5.0.0-0 @pulumi/pulumi @pulumi/aws @pulumi/cloudflare typescript
 ```
 
-Run `sst install`. It installs SST and the providers in `.sst/platform`, and writes `.sst/tsconfig.json`, which tells TypeScript where they are. Extend it, and `tsc` compiles the component to JavaScript and a `.d.ts`.
+`sst/components`, `sst/components/aws` and the other groups come from it, with their types, and `sst/testing` too. A component that uses SST's components of a provider, like `sst/components/aws`, also needs the providers that group loads. For `sst/components/aws` they're `@pulumi/aws`, `@pulumi/command`, `@pulumi/docker-build`, `@pulumi/random` and `@pulumi/tls`. `node_modules/sst/platform/package.json` lists each group's under `groups`.
+
+`tsc` compiles the component to JavaScript and a `.d.ts`.
 
 ```json title="tsconfig.json"
 {
-  "extends": "./.sst/tsconfig.json",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
@@ -579,18 +574,13 @@ Say which versions of SST and which providers the component works with, as peer 
 
 An app that installs the package gets its components checked against these when it deploys. If the app doesn't have one of the providers, the deploy stops and says to add it with `sst add`. The same happens if the app's SST or one of its providers is a version outside the range. The providers are optional so that a package manager doesn't install another copy of each in the app, which has its own. `>=5.0.0-0` includes the prereleases of version 5.
 
+When an app runs the component, its `sst/components` and its providers are the app's own, not the ones the package's repo installed.
+
 ---
 
 #### Test the package
 
-Test the component with `mock()`, as in [Test it](#test-it). Point vitest at the app's SST and providers, so a test uses the same ones as a deploy.
-
-```ts title="vitest.config.ts"
-import { defineConfig } from "vitest/config";
-import { alias } from "./.sst/platform/src/testing/vitest";
-
-export default defineConfig({ resolve: { alias } });
-```
+Test the component with `mock()` from `sst/testing`, as in [Test it](#test-it). It works in vitest, `bun test` and `node --test`, with nothing to set up.
 
 ```ts title="test/email-domain.test.ts"
 import { expect, test } from "vitest";
@@ -609,6 +599,8 @@ test("verifies the domain in Cloudflare", async () => {
 });
 ```
 
+`mock()` gives the test `sst` with the components of each provider whose packages are installed, like `sst.aws`. Using one that isn't fails, and says what to install.
+
 ---
 
 #### Use it
@@ -625,7 +617,7 @@ const email = new EmailDomain("Mail", {
 });
 ```
 
-For TypeScript to read the package's types, the app's `tsconfig.json` extends `.sst/tsconfig.json` too.
+For TypeScript to read the package's types, the app's `tsconfig.json` extends `.sst/tsconfig.json`, which `sst install` writes. It says where the app's SST and providers are, in `.sst/platform`.
 
 ```json title="tsconfig.json" {2}
 {
@@ -639,5 +631,14 @@ For TypeScript to read the package's types, the app's `tsconfig.json` extends `.
 :::note
 `paths` in your own `tsconfig.json` replace the ones it extends. If you have some, add the entries from `.sst/tsconfig.json` to yours. `sst install` changes them when you add a provider.
 :::
+
+If the app's tests load the package, give vitest the same, so a test uses the app's SST and providers, as a deploy does.
+
+```ts title="vitest.config.ts"
+import { defineConfig } from "vitest/config";
+import { alias } from "./.sst/platform/src/testing/vitest";
+
+export default defineConfig({ resolve: { alias } });
+```
 
 A component can also be written with the `sst` and provider globals, as in your app, and published as TypeScript. Then the app needs no change to its `tsconfig.json`, but nothing in the package says what it depends on.

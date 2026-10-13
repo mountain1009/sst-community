@@ -24,14 +24,17 @@ export async function sstGlobal(providers = groupProviders()) {
     Object.defineProperty(sst, name, {
       enumerable: true,
       get() {
-        const install =
-          missing.length === 1
-            ? "it as a dev dependency"
-            : "them as dev dependencies";
+        const one = missing.length === 1;
         throw new Error(
-          `sst.${name} needs ${list(
-            missing,
-          )}, which the app hasn't installed. To test what uses it, install ${install}.`,
+          [
+            `sst.${name} needs ${list(missing)}, which ${
+              one ? "isn't" : "aren't"
+            } installed here.`,
+            `In a component package's repo, install ${
+              one ? "it as a dev dependency" : "them as dev dependencies"
+            }.`,
+            "In an app, use the sst/testing in .sst/platform, where SST's providers are installed.",
+          ].join(" "),
         );
       },
     });
