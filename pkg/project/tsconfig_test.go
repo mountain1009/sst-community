@@ -35,13 +35,16 @@ func TestWriteTsconfig(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(data, &config))
 	assert.Equal(t, map[string][]string{
-		"sst/components":      {"./platform/dist/types/components/index"},
-		"sst/testing":         {"./platform/dist/types/testing/index"},
-		"@pulumi/pulumi":      {"./platform/node_modules/@pulumi/pulumi"},
-		"@pulumi/pulumi/*":    {"./platform/node_modules/@pulumi/pulumi/*"},
-		"@pulumi/aws":         {"./platform/node_modules/@pulumi/aws"},
-		"@pulumi/aws/*":       {"./platform/node_modules/@pulumi/aws/*"},
-		"@pulumiverse/vercel": {"./platform/node_modules/@pulumiverse/vercel"},
+		"sst/components":            {"./platform/dist/types/components/core"},
+		"sst/components/aws":        {"./platform/dist/types/components/aws/index"},
+		"sst/components/cloudflare": {"./platform/dist/types/components/cloudflare/index"},
+		"sst/components/vercel":     {"./platform/dist/types/components/vercel/index"},
+		"sst/testing":               {"./platform/dist/types/testing/index"},
+		"@pulumi/pulumi":            {"./platform/node_modules/@pulumi/pulumi"},
+		"@pulumi/pulumi/*":          {"./platform/node_modules/@pulumi/pulumi/*"},
+		"@pulumi/aws":               {"./platform/node_modules/@pulumi/aws"},
+		"@pulumi/aws/*":             {"./platform/node_modules/@pulumi/aws/*"},
+		"@pulumiverse/vercel":       {"./platform/node_modules/@pulumiverse/vercel"},
 		"@pulumiverse/vercel/*": {
 			"./platform/node_modules/@pulumiverse/vercel/*",
 		},

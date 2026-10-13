@@ -28,8 +28,9 @@ type EvalOptions struct {
 }
 
 // The modules an app or a component package imports from the app's own
-// platform, rather than from its node_modules
-var PlatformModules = []string{"sst/components"}
+// platform, rather than from its node_modules: what SST's components share,
+// and the components of each provider
+var PlatformModules = []string{"sst/components", "sst/components/aws", "sst/components/cloudflare", "sst/components/vercel"}
 
 // A module that every file of the app, and every package it imports, can use
 // by name without importing it, like `sst` and `aws` in `sst.config.ts`.
@@ -131,8 +132,9 @@ const __dirname = topLevelFileUrlToPath(new topLevelURL(".", import.meta.url))
 				},
 			},
 			{
-				// `sst/components` is the same file the `sst` global is, so a
-				// package that imports it shares the app's components.
+				// `sst/components` and its groups, like `sst/components/aws`,
+				// are the files the `sst` global is made of, so a package that
+				// imports them shares the app's components.
 				Name: "PlatformModules",
 				Setup: func(build esbuild.PluginBuild) {
 					filter := "^(" + strings.Join(PlatformModules, "|") + ")$"

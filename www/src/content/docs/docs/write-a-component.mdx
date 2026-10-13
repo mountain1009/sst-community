@@ -483,7 +483,7 @@ And `unordered` are the resources that were removed in order before, and aren't 
 
 A component can be published as a package and used in any app on version 5.
 
-In a package, import what the component uses: the components from `sst/components`, and each provider from its package. When an app runs the component, both are the app's own, so the package uses the same SST and the same providers as the app. `sst/components` is what the `sst` global is.
+In a package, import what the component uses: the components from `sst/components`, and each provider from its package. When an app runs the component, both are the app's own, so the package uses the same SST and the same providers as the app. `sst/components` has what SST's components share, and `sst/components/aws`, `sst/components/cloudflare` and `sst/components/vercel` have the components of each provider. Together they're what the `sst` global is.
 
 ```ts title="src/index.ts"
 import { component, type ComponentArgs, type LinkDefinition } from "sst/components";

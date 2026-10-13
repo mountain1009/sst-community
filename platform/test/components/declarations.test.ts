@@ -84,7 +84,7 @@ describe("a component in a package", () => {
       },
       // What .sst/tsconfig.json maps it to in an app
       {
-        "sst/components": [path.join(platform, "src/components/index.ts")],
+        "sst/components": [path.join(platform, "src/components/core.ts")],
       },
     );
 
@@ -144,5 +144,41 @@ describe("a component in a package", () => {
     expect(declaration).toContain("sst.ComponentClass<{");
     expect(declaration).toContain("bucket: typeof aws.s3.Bucket;");
     expect(declaration).not.toContain("import(");
+  }, 120_000);
+
+  it("can use SST's components of a provider from its group", () => {
+    const { errors, declaration } = compile(
+      {
+        "index.ts": `
+          import { component, type ComponentArgs } from "sst/components";
+          import { v5 } from "sst/components/aws";
+          import type { ComponentResourceOptions } from "@pulumi/pulumi";
+
+          const parts = { files: v5.Bucket };
+
+          export interface DocsArgs extends ComponentArgs<typeof parts> {}
+
+          export class Docs extends component("acme:Docs", parts) {
+            constructor(name: string, args: DocsArgs, opts?: ComponentResourceOptions) {
+              super(name, args, opts);
+              this.part("files", {});
+            }
+          }
+        `,
+      },
+      // What .sst/tsconfig.json maps them to in an app
+      {
+        "sst/components": [path.join(platform, "src/components/core.ts")],
+        "sst/components/aws": [
+          path.join(platform, "src/components/aws/index.ts"),
+        ],
+      },
+    );
+
+    expect(errors).toEqual([]);
+    expect(declaration).toContain('import { v5 } from "sst/components/aws";');
+    expect(declaration).toContain("files: typeof v5.Bucket;");
+    // Nothing named by where it's installed
+    expect(declaration).not.toMatch(/import\("\.|node_modules/);
   }, 120_000);
 });

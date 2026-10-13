@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -108,31 +109,38 @@ console.log(JSON.stringify([infra, esm, commonjs.name, own, cjs.name]));
 	assert.Equal(t, `["the global","the global","the global","its own","commonjs only"]`, out)
 }
 
-// An app file or a package that imports \`sst/components\` gets the file the
-// \`sst\` global is, so they share one copy of the components.
+// An app file or a package that imports \`sst/components\`, or the components
+// of a provider like \`sst/components/aws\`, gets the files the \`sst\` global
+// is made of, so they share one copy of the components.
 func TestBuildPlatformModules(t *testing.T) {
 	dir := t.TempDir()
-	components := filepath.ToSlash(filepath.Join(dir, ".sst", "platform", "src", "components", "index.ts"))
+	components := filepath.ToSlash(filepath.Join(dir, ".sst", "platform", "src", "components"))
 	writeFiles(t, dir, map[string]string{
-		".sst/platform/src/components/index.ts": `export function component() {}`,
-		"global.ts":                             `export const component = sst.component;`,
-		"infra.ts":                              `export { component } from "sst/components";`,
-		"node_modules/pkg/package.json":         `{"name":"pkg","type":"module","main":"index.mjs"}`,
-		"node_modules/pkg/index.mjs":            `export { component } from "sst/components";`,
+		".sst/platform/src/components/index.ts":     "export * from \"./core\";\nexport * as aws from \"./aws/index\";",
+		".sst/platform/src/components/core.ts":      `export function component() {}`,
+		".sst/platform/src/components/aws/index.ts": `export class Bucket {}`,
+		"global.ts":                     `export const component = sst.component; export const Bucket = sst.aws.Bucket;`,
+		"infra.ts":                      "export { component } from \"sst/components\";\nexport { Bucket } from \"sst/components/aws\";",
+		"node_modules/pkg/package.json": `{"name":"pkg","type":"module","main":"index.mjs"}`,
+		"node_modules/pkg/index.mjs":    "export { component } from \"sst/components\";\nexport { Bucket } from \"sst/components/aws\";",
 	})
 
 	out := buildAndRun(t, js.EvalOptions{
-		Dir:      dir,
-		Globals:  []js.Global{{Name: "sst", Module: components}},
-		Platform: map[string]string{"sst/components": components},
+		Dir:     dir,
+		Globals: []js.Global{{Name: "sst", Module: components + "/index.ts"}},
+		Platform: map[string]string{
+			"sst/components":     components + "/core.ts",
+			"sst/components/aws": components + "/aws/index.ts",
+		},
 		Code: `
 import * as global from "./global.ts";
 import * as infra from "./infra.ts";
 import * as pkg from "pkg";
 console.log(typeof global.component, global.component === infra.component, infra.component === pkg.component);
+console.log(typeof global.Bucket, global.Bucket === infra.Bucket, infra.Bucket === pkg.Bucket);
 `,
 	})
-	assert.Equal(t, "function true true", out)
+	assert.Equal(t, "function true true\nfunction true true", out)
 }
 
 // Reading \`app()\` doesn't load what \`run()\` imports from the platform or the
@@ -153,8 +161,10 @@ export default $config({
 `,
 		"infra.ts": `
 import { component } from "sst/components";
+import { v5 } from "sst/components/aws";
 import * as aws from "@pulumi/aws";
 export const bucket = component("acme:Bucket", { bucket: aws.s3.Bucket });
+export const files = component("acme:Files", { files: v5.Bucket });
 `,
 		"node_modules/pkg/package.json": `{"name":"pkg","type":"module","main":"index.mjs"}`,
 		"node_modules/pkg/index.mjs":    "import * as cloudflare from \"@pulumi/cloudflare\";\nexport const record = cloudflare.DnsRecord;",
@@ -196,4 +206,18 @@ func TestBuildErrorLineInAFileWithGlobals(t *testing.T) {
 	out, _ := exec.Command(node, "--enable-source-maps", bundle).CombinedOutput()
 	assert.Contains(t, string(out), "Error: sstaws")
 	assert.Contains(t, string(out), "infra.ts:2:", string(out))
+}
+
+// Each group of SST's components the `sst` global has, in groups.ts, is a
+// module an app or a package imports, like `sst/components/aws`
+func TestPlatformModulesAreTheGroups(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "platform", "src", "components", "groups.ts"))
+	require.NoError(t, err)
+	expected := []string{"sst/components"}
+	for _, match := range regexp.MustCompile(`(\w+): \(\) => import\("\./(\w+)/index"\)`).FindAllStringSubmatch(string(data), -1) {
+		require.Equal(t, match[1], match[2], "a group is named for its folder")
+		expected = append(expected, "sst/components/"+match[1])
+	}
+	require.Greater(t, len(expected), 1, "groups.ts lists the groups")
+	assert.ElementsMatch(t, expected, js.PlatformModules)
 }

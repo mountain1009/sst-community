@@ -3,7 +3,9 @@
 
 const CLOUDFLARE_API_BASE_URL =
   process.env.CLOUDFLARE_API_BASE_URL ?? "https://api.cloudflare.com/client/v4";
-const CLOUDFLARE_API_TOKEN =
+// Read when a request is made, not when this file loads, so SST's components
+// load without the app's globals, as in a test
+const apiToken = () =>
   $app.providers?.cloudflare?.apiToken || process.env.CLOUDFLARE_API_TOKEN;
 
 export interface FetchError {
@@ -37,7 +39,7 @@ export async function cfFetch<ResultType>(
       const ret = await fetch(`${CLOUDFLARE_API_BASE_URL}${resource}`, {
         ...init,
         headers: {
-          Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}`,
+          Authorization: `Bearer ${apiToken()}`,
           ...init.headers,
         },
       });

@@ -163,6 +163,10 @@ func (p *Project) Run(ctx context.Context, input *StackInput) error {
 	}
 	components := path.Join(filepath.ToSlash(p.PathPlatformDir()), "src/components")
 	globals = append(globals, js.Global{Name: "sst", Module: components})
+	platform := map[string]string{}
+	for module, file := range platformModuleFiles() {
+		platform[module] = path.Join(components, file+".ts")
+	}
 
 	buildResult, err := js.Build(js.EvalOptions{
 		Dir:     p.PathRoot(),
@@ -172,11 +176,9 @@ func (p *Project) Run(ctx context.Context, input *StackInput) error {
 			"$cli": string(cliBytes),
 			"$dev": fmt.Sprintf("%v", input.Dev),
 		},
-		Inject:  []string{filepath.ToSlash(filepath.Join(p.PathWorkingDir(), "platform/src/shim/run.js"))},
-		Globals: globals,
-		Platform: map[string]string{
-			"sst/components": path.Join(components, "index.ts"),
-		},
+		Inject:   []string{filepath.ToSlash(filepath.Join(p.PathWorkingDir(), "platform/src/shim/run.js"))},
+		Globals:  globals,
+		Platform: platform,
 		Code: fmt.Sprintf(`
       import { run } from "%v";
 			import mod from '%s';

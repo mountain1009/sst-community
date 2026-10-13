@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sst/sst/v3/pkg/js"
@@ -85,4 +86,40 @@ func TestCheckPackages(t *testing.T) {
 		// A dev build isn't checked against the package's range
 		assert.NoError(t, checkPackages(meta, "dev", ProviderLock{aws, cloudflare}))
 	})
+}
+
+// A package that imports only the components of a provider, like
+// `sst/components/aws`, is a component package too
+func TestComponentPackagesImportingAGroup(t *testing.T) {
+	dir := t.TempDir()
+	components := filepath.Join(dir, ".sst/platform/src/components")
+	files := map[string]string{
+		".sst/platform/src/components/index.ts":     "export * from \"./core\";\nexport * as aws from \"./aws/index\";",
+		".sst/platform/src/components/core.ts":      `export function component() {}`,
+		".sst/platform/src/components/aws/index.ts": `export class Bucket {}`,
+		"node_modules/@acme/uploads/package.json":   `{"name":"@acme/uploads","type":"module","main":"index.mjs"}`,
+		"node_modules/@acme/uploads/index.mjs":      `export { Bucket } from "sst/components/aws";`,
+	}
+	for name, contents := range files {
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+		require.NoError(t, os.WriteFile(path, []byte(contents), 0644))
+	}
+	result, err := js.Build(js.EvalOptions{
+		Dir:     dir,
+		Globals: []js.Global{{Name: "sst", Module: components}},
+		Platform: map[string]string{
+			"sst/components":     filepath.Join(components, "core.ts"),
+			"sst/components/aws": filepath.Join(components, "aws/index.ts"),
+		},
+		Code: `import "@acme/uploads";`,
+	})
+	require.NoError(t, err)
+	js.Cleanup(result)
+	var meta js.Metafile
+	require.NoError(t, json.Unmarshal([]byte(result.Metafile), &meta))
+
+	found := componentPackages(meta)
+	require.Len(t, found, 1)
+	assert.True(t, strings.HasSuffix(filepath.ToSlash(found[0]), "node_modules/@acme/uploads"), found[0])
 }

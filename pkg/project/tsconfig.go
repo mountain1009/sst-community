@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/sst/sst/v3/pkg/js"
 )
 
 // Where the platform's types are, relative to the platform: compiled
@@ -15,16 +18,34 @@ func platformTypes(platformDir string) string {
 	return "src"
 }
 
+// Where each module a package imports from the app's platform is
+// (js.PlatformModules), in the platform's components folder and without an
+// extension: `sst/components` is what SST's components share, and each group,
+// like `sst/components/aws`, is the components of a provider.
+func platformModuleFiles() map[string]string {
+	files := map[string]string{}
+	for _, module := range js.PlatformModules {
+		if group, ok := strings.CutPrefix(module, "sst/components/"); ok {
+			files[module] = group + "/index"
+			continue
+		}
+		files[module] = "core"
+	}
+	return files
+}
+
 // Writes .sst/tsconfig.json, for an app, or the repo of a component package,
-// to extend. It tells TypeScript where `sst/components`, `sst/testing` and the
-// providers are: they're installed in .sst/platform, where TypeScript doesn't
-// look for them.
+// to extend. It tells TypeScript where `sst/components` and its groups,
+// `sst/testing` and the providers are: they're installed in .sst/platform,
+// where TypeScript doesn't look for them.
 func (p *Project) writeTsconfig() error {
 	platformDir := p.PathPlatformDir()
 	types := "./platform/" + platformTypes(platformDir)
 	paths := map[string][]string{
-		"sst/components": {types + "/components/index"},
-		"sst/testing":    {types + "/testing/index"},
+		"sst/testing": {types + "/testing/index"},
+	}
+	for module, file := range platformModuleFiles() {
+		paths[module] = []string{types + "/components/" + file}
 	}
 	for _, scope := range []string{"@pulumi", "@pulumiverse", "@sst-provider"} {
 		entries, err := os.ReadDir(filepath.Join(platformDir, "node_modules", scope))

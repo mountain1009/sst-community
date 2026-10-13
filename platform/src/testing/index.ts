@@ -1,5 +1,6 @@
 import fs from "fs";
 import * as pulumi from "@pulumi/pulumi";
+import { notInstalled, sstGlobal } from "./global";
 import { type MockInput, mockPulumi } from "./mock";
 
 export type { MockInput, RecordedResource } from "./mock";
@@ -13,8 +14,13 @@ export type { MockInput, RecordedResource } from "./mock";
  * creates is recorded, with the inputs and options it was given, and comes
  * back with an id and an ARN made from its name.
  *
- * Call it before the file that defines your component is loaded, as that
- * file reads `sst` and `aws` when it loads.
+ * Call it before the file that defines your component is loaded, if that
+ * file reads `sst` or `aws` when it loads. `sst/components` and the
+ * components of each provider, like `sst/components/aws`, can be imported
+ * anywhere.
+ *
+ * `sst` has the components of each provider whose packages are installed,
+ * like `sst.aws`. Using one that isn't fails, and says what to install.
  *
  * @example
  * ```ts title="uploads.test.ts"
@@ -72,14 +78,14 @@ export async function mock(input?: MockInput & { dev?: boolean }) {
   // Each provider under its name, and the components as `sst`
   for (const provider of providers())
     (globalThis as any)[provider.alias] = await import(provider.package);
-  (globalThis as any).sst = await import("../components/index");
+  (globalThis as any).sst = await sstGlobal();
 
   return engine;
 }
 
 // The providers of the app, as `sst install` wrote them next to the platform.
-// Where there is no app, as in the platform's own tests, the ones the
-// platform comes with.
+// Where there is no app, as in a component package's repo or the platform's
+// own tests, whichever of aws and cloudflare are installed.
 function providers(): { alias: string; package: string }[] {
   try {
     return JSON.parse(
@@ -92,6 +98,6 @@ function providers(): { alias: string; package: string }[] {
     return [
       { alias: "aws", package: "@pulumi/aws" },
       { alias: "cloudflare", package: "@pulumi/cloudflare" },
-    ];
+    ].filter((provider) => notInstalled([provider.package]).length === 0);
   }
 }

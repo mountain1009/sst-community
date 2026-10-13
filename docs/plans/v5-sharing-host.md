@@ -1,6 +1,6 @@
 # Sharing components, with SST as the host
 
-**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 3 are done.** Each step below is its own commit, so any one of them can be reverted alone.
+**Status: planned 2026-10-12, on the local branch `v5-sharing-host`, off `v5-sharing`. Steps 1 to 4 are done.** Each step below is its own commit, so any one of them can be reverted alone.
 
 ## The goal
 
@@ -121,13 +121,13 @@ Each is its own commit. A step taken from `v5-sharing-deps` names its commit the
 
 3. **SST's types name no globals** (done). Bring over `ae3d39f0a` (step 14). The `sst` and `$util` aliases move to `platform/src/global-aliases.d.ts`, which the types build leaves out, and the 19 uses of `$util` in types become imports from Pulumi. Without it, SST's declarations name types through its globals, 487 times. A package's repo has no globals, so there `tsc` fails on a V5 component's `nodes`, and Pulumi's types become `any`. Leave out its line in `dependencies_test.go`, which isn't on this branch. The templates' `global.d.ts` imports the aliases too, which that commit missed. Checked: `tsc`, `declarations.test.ts`, and the generated docs identical before and after.
 
-4. **A core, and a group for each provider.** Port the components part of `7530dfa56` (step 11):
+4. **A core, and a group for each provider** (done). Port the components part of `7530dfa56` (step 11):
    - `sst/components` is the core: what SST's components share. `sst/components/aws`, `/cloudflare` and `/vercel` are each provider's components. The `sst` global is all of them, as before.
-   - `PlatformModules` lists the four, so a deploy maps each to the platform.
+   - `PlatformModules` lists the four, so a deploy maps each to the platform. `.sst/tsconfig.json` and the vitest `alias` map them too, which that commit didn't need, and a test checks the alias against the groups.
    - `mock()` gives the `sst` global the groups whose providers are installed, so a package's test needs only its own providers.
    - The Cloudflare API token is read when it's used, not when `cloudflare/helpers/fetch.ts` loads. That's a 4.x file (step 1).
 
-   Leave out the removal of step 10's stand-ins (not on this branch), its `sdk/js` changes (step 5 here), and its tests of the install from the app's `package.json`. A package that imported a group's component from `sst/components` now imports it from the group. That's unreleased. Checked: `groups.test.ts`, `global.test.ts`, and `sst diff` showing no changes on an app deployed before it.
+   Leave out the removal of step 10's stand-ins (not on this branch), its `sdk/js` changes (step 5 here), and its tests of the install from the app's `package.json`. A package that imported a group's component from `sst/components` now imports it from the group. That's unreleased. Checked: `groups.test.ts`, `global.test.ts`, and that the deploy's package check finds a package that imports only a group. And with CLIs built before and after it, on an app with local state, random and tls, a file using the globals and a package importing `sst/components`: deployed with the one from before, `sst diff` with the one after showed no changes, and its deploy changed only the encrypted values that a second deploy changes too. A package's `sst/components/aws` and `sst/components` gave it the `sst` global's `Bucket` and `Linkable`, and that app's `.sst/tsconfig.json` gave TypeScript the groups' types. A package's `.d.ts` names a group's component through the group (`declarations.test.ts`), and reading `app()` leaves the groups out, as it does `sst/components` (`TestBuildReadingApp`).
 
 5. **The `sst` package carries SST's components.** Port the package parts of `e5b14cdf0` (step 8) and `49ac2c834` (step 15):
    - `sdk/js/scripts/platform.ts` compiles the platform to JavaScript, with its declarations, into the package's `platform` folder.
